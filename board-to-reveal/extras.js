@@ -98,7 +98,7 @@ function name(){ var n=decodeURIComponent(location.pathname.split('/').pop()||''
 function open(){ var w=window.open(SW+'#present','_blank'); if(!w){ alert('Allow pop-ups for this page to present with Slidewright.'); return; }
   var src=source();
   function onMsg(e){ if(e.source!==w||!e.data||e.data.type!=='slidewright-ready') return; window.removeEventListener('message',onMsg);
-    src.then(function(r){ if(!r){ return; } w.postMessage({type:'slidewright-deck',html:r.html,exact:r.exact,name:name(),slide:(window.Reveal&&Reveal.getIndices?Reveal.getIndices().h:0)},ORIGIN); }); }
+    src.then(function(r){ if(!r){ return; } w.postMessage({type:'slidewright-deck',html:r.html,exact:r.exact,name:name(),url:/^https?:$/.test(location.protocol)?location.href.split('#')[0]:'',slide:(window.Reveal&&Reveal.getIndices?Reveal.getIndices().h:0)},ORIGIN); }); }
   window.addEventListener('message',onMsg); }
 window.SW_present={open:open,source:source,rebuild:rebuild};
 document.querySelectorAll('.sw-present').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation(); open(); }); });

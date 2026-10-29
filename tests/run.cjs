@@ -240,6 +240,37 @@ test('a deck from someone else’s repo: Save offers sign-in, then a copy when G
   assert(buttons.includes('Download a copy') && buttons.includes('Save to my GitHub…'), 'copy options missing: ' + buttons);
 });
 
+test('a deck sent from a web page finds its own file on GitHub (GitHub mocked)', async (page, ctx) => {
+  const html = fs.readFileSync(SAMPLE, 'utf8'); const b = Buffer.from(html, 'utf8');
+  const sha = require('crypto').createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + b.length + '\0'), b])).digest('hex');
+  const hdr = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+  await ctx.route(/^https:\/\/api\.github\.com\//, r => { const u = new URL(r.request().url()); const p = u.pathname; const json = (o, st) => r.fulfill({ status: st || 200, contentType: 'application/json', headers: hdr, body: JSON.stringify(o) });
+    if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: hdr });
+    if (p === '/user') return json({ login: 'JesseTNRoberts' });
+    if (p === '/user/repos') return json([{ owner: { login: 'JesseTNRoberts' }, name: 'ml-lectures', has_pages: true }, { owner: { login: 'JesseTNRoberts' }, name: 'other', has_pages: true }]);
+    if (p === '/repos/JesseTNRoberts/ml-lectures/pages') return json({ html_url: 'https://www.jessetnroberts.com/ml-lectures/', source: { branch: 'main', path: '/' } });
+    if (p === '/repos/JesseTNRoberts/other/pages') return json({ html_url: 'https://www.jessetnroberts.com/other/', source: { branch: 'main', path: '/' } });
+    if (p === '/repos/JesseTNRoberts/ml-lectures/contents/week3/cnn.html' && u.searchParams.get('ref') === 'main') return json({ sha });
+    json({ message: 'Not Found' }, 404); });
+  // not signed in: Save explains and offers sign-in
+  await page.evaluate(h => { window.__html = h; }, html);
+  await page.evaluate(() => { __deckEditor.receiveDeck({ html: window.__html, exact: true, name: 'cnn.html', url: 'https://jessetnroberts.com/ml-lectures/week3/cnn.html' }, 'https://www.jessetnroberts.com'); });
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => /^Present /.test(h.textContent)));
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Just edit').click());
+  assert(!(await page.evaluate(() => __deckEditor.S.gh)), 'should not know the repo before signing in');
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'Save this deck'));
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Cancel').click());
+  // signed in: found quietly, by an identical file in the right Pages site
+  await page.evaluate(() => { try { localStorage.setItem('slidewright.ghToken', 'tok'); } catch (_) { __deckEditor.S.ghTokenMem = 'tok'; } });
+  await page.evaluate(() => { __deckEditor.receiveDeck({ html: window.__html, exact: true, name: 'cnn.html', url: 'https://jessetnroberts.com/ml-lectures/week3/cnn.html' }, 'https://www.jessetnroberts.com'); });
+  await page.waitForFunction(() => __deckEditor.S.gh, null, { timeout: 10000 });
+  const g = await page.evaluate(() => __deckEditor.S.gh);
+  assert(g.owner === 'JesseTNRoberts' && g.repo === 'ml-lectures' && g.branch === 'main' && g.path === 'week3/cnn.html' && g.sha === sha, 'wrong file: ' + JSON.stringify(g));
+  // a changed copy is not matched
+  assert(await page.evaluate(() => __deckEditor.findOnGitHub('https://jessetnroberts.com/ml-lectures/week3/cnn.html', 'deadbeef')) === null, 'matched a file that differs');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
