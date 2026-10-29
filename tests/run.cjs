@@ -378,6 +378,34 @@ test('an expired GitHub sign-in is forgotten and Save offers to sign in again', 
   assert(await page.evaluate(() => { let v = null; try { v = localStorage.getItem('slidewright.ghToken'); } catch (_) {} return !v && !__deckEditor.S.ghTokenMem; }), 'the rejected token was kept');
 });
 
+test('tables: insert from the picker, type with Tab, add and remove rows and columns, headers for screen readers', async page => {
+  await page.click('#bTable'); await page.waitForSelector('.tblpick');
+  await page.evaluate(() => [...document.querySelectorAll('.tblpick button')].find(b => b.getAttribute('aria-label') === '3 rows by 4 columns').click());
+  await page.waitForFunction(() => __deckEditor.S.editing && __deckEditor.S.editing.tagName === 'TABLE');
+  const shape = () => page.evaluate(() => { const t = __deckEditor.S.sel[0]; return [...t.rows].map(r => r.cells.length).join(','); });
+  assert(await shape() === '4,4,4', 'expected 3 rows of 4 cells, got ' + await shape());
+  await page.keyboard.press('Tab'); await page.keyboard.type('Model');
+  await page.keyboard.press('Tab'); await page.keyboard.type('Accuracy');
+  const txt = await page.evaluate(() => [...__deckEditor.S.sel[0].rows[0].cells].map(c => c.textContent).join('|'));
+  assert(/Model\|Accuracy/.test(txt), 'Tab did not move between cells: ' + txt);
+  // Tab from the last cell adds a row
+  await page.evaluate(() => { const t = __deckEditor.S.sel[0]; const cs = t.querySelectorAll('th,td'); const c = cs[cs.length - 1]; const r = document.createRange(); r.selectNodeContents(c); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
+  await page.keyboard.press('Tab'); await wait(100);
+  assert(await shape() === '4,4,4,4', 'Tab in the last cell did not add a row: ' + await shape());
+  await page.keyboard.press('Escape'); await wait(100);
+  await page.evaluate(() => [...document.querySelectorAll('[data-tbl]')].find(b => b.dataset.tbl === 'colRight').click()); await wait(100);
+  assert(await shape() === '5,5,5,5', 'column not added: ' + await shape());
+  await page.evaluate(() => [...document.querySelectorAll('[data-tbl]')].find(b => b.dataset.tbl === 'delRow').click()); await wait(100);
+  assert(await shape() === '5,5,5', 'row not deleted: ' + await shape());
+  await page.keyboard.press('Control+z'); await wait(100);
+  assert(await shape() === '5,5,5,5', 'undo did not restore the row: ' + await shape());
+  await page.check('#tblHeadCol'); await page.fill('#tblCap', 'Accuracy by model'); await page.press('#tblCap', 'Enter'); await page.dispatchEvent('#tblCap', 'change');
+  const a11y = await page.evaluate(() => { const t = __deckEditor.S.sel[0]; return { cols: t.querySelectorAll('thead th[scope=col]').length, rows: t.querySelectorAll('tbody th[scope=row]').length, cap: t.querySelector('caption').textContent }; });
+  assert(a11y.cols === 5 && a11y.rows === 3 && a11y.cap === 'Accuracy by model', 'table headers or caption wrong: ' + JSON.stringify(a11y));
+  const out = await page.evaluate(() => __deckEditor.serialize());
+  assert(/<table[^>]*position: absolute/.test(out) && out.includes('<caption') && !out.includes('contenteditable'), 'table not saved cleanly');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

@@ -331,6 +331,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   .tb .lb{display:none}
   #fileName{max-width:140px}
 }
+/* keep the toolbar on one row: drop labels from the less-used buttons first */
+@media (max-width:1680px){ #bMath .lb,#bCode .lb,#bMedia .lb{display:none} }
+@media (max-width:1440px){ #bTable .lb,#bShape .lb,#bAlt .lb,#bCheck .lb{display:none} }
+@media (max-width:1180px){ #bText .lb,#bImage .lb,#bOpen .lb{display:none} }
 @media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
 </style>
 
@@ -378,6 +382,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button class="tb" id="bText" title="Add a text box"><svg viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></svg><span class="lb">Text</span></button>
     <button class="tb" id="bShape" aria-haspopup="menu" aria-expanded="false" title="Add a shape"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="11" height="9" rx="1.5"/><circle cx="16" cy="15" r="4.5"/></svg><span class="lb">Shape</span></button>
     <button class="tb" id="bImage" title="Add an image (or paste / drop one)"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="m4 16 5-5 4 4 2.5-2.5L20 17"/><circle cx="15.5" cy="9" r="1.4"/></svg><span class="lb">Image</span></button>
+    <button class="tb" id="bTable" aria-haspopup="dialog" title="Insert a table"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 4.5v15M15 4.5v15"/></svg><span class="lb">Table</span></button>
     <button class="tb" id="bMath" title="Insert an equation (LaTeX)"><svg viewBox="0 0 24 24"><path d="M18 5H6.5l6 7-6 7H18"/></svg><span class="lb">Equation</span></button>
     <button class="tb" id="bCode" title="Insert a code block"><svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></svg><span class="lb">Code</span></button>
     <span class="sep"></span>
@@ -480,6 +485,22 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div class="fld">Colour<span class="colorf"><input type="color" id="tColor" aria-label="Text colour"><input type="text" id="tColorTxt" aria-label="Text colour value"></span></div>
         <div class="btnrow"><button class="btn wide" data-tscale="0.9">Smaller text</button><button class="btn wide" data-tscale="1.1">Larger text</button></div>
         <p class="hint" id="textHint">Double-click the text (or press Enter) to type. Select words while typing to bold or colour just those.</p>
+      </section>
+
+      <section class="pane" id="pTable" hidden>
+        <h3>Table</h3>
+        <p class="hint" id="tblWhere">Double-click a cell to type. Tab moves to the next cell.</p>
+        <div class="grid2">
+          <button class="btn" data-tbl="rowAbove">Row above</button><button class="btn" data-tbl="rowBelow">Row below</button>
+          <button class="btn" data-tbl="colLeft">Column left</button><button class="btn" data-tbl="colRight">Column right</button>
+          <button class="btn" data-tbl="delRow">Delete row</button><button class="btn" data-tbl="delCol">Delete column</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="tblHead"><span>Header row</span></label>
+        <label class="chk"><input type="checkbox" id="tblHeadCol"><span>First column is a header</span></label>
+        <label class="chk"><input type="checkbox" id="tblBand"><span>Banded rows</span></label>
+        <label class="chk"><input type="checkbox" id="tblEven"><span>Equal column widths</span></label>
+        <label class="fld">Caption (read by screen readers)<input type="text" id="tblCap" placeholder="e.g. Test accuracy by model size"></label>
+        <label class="chk"><input type="checkbox" id="tblCapShow"><span>Show the caption on the slide</span></label>
       </section>
 
       <section class="pane" id="pFill" hidden>
@@ -674,7 +695,7 @@ function pickAt(x,y){
   }
   return fallback;
 }
-const hasBlockKids=el=>el.tagName.toLowerCase()!=='svg'&&Array.from(el.children).some(c=>!INLINE.has(c.tagName.toLowerCase())&&!isExtra(c));
+const hasBlockKids=el=>el.tagName.toLowerCase()!=='svg'&&el.tagName!=='TABLE'&&Array.from(el.children).some(c=>!INLINE.has(c.tagName.toLowerCase())&&!isExtra(c));
 
 /* ======================= undo (mutation journal) ======================= */
 let pending=[]; const undoStack=[], redoStack=[]; const IGN=new Set(['contenteditable','spellcheck']);
@@ -1197,6 +1218,7 @@ function describe(el){const tag=el.tagName.toLowerCase();
   if(el.classList.contains('slide-copy')) return ['line','Copyright line']; if(el.classList.contains('pdf-get')) return ['button','PDF download button'];
   if(el.classList.contains('sw-math')||(el.children.length===1&&el.firstElementChild.classList.contains('sw-math'))) return ['equation',(el.classList.contains('sw-math')?el:el.firstElementChild).getAttribute('data-latex')||'Equation'];
   if(tag==='pre') return ['code',(el.getAttribute('aria-label')||'Code')+': '+(codeSource(el).split('\n')[0]||'')];
+  if(tag==='table'){ const cap=el.querySelector('caption'); return ['table',(cap&&cap.textContent.trim())||`${el.rows.length} × ${(el.rows[0]&&el.rows[0].cells.length)||0} table`]; }
   if(tag==='img') return ['image',el.getAttribute('alt')||'Image']; if(tag==='svg') return ['graphic',el.getAttribute('aria-label')||'Graphic'];
   if(el.getAttribute('role')==='img') return ['picture',el.getAttribute('aria-label')||'Picture'];
   let src=el; if(el.querySelector&&el.querySelector('.sw-math')){src=el.cloneNode(true); src.querySelectorAll('.sw-math').forEach(m=>m.replaceWith(' (equation) '));}
@@ -1219,7 +1241,7 @@ function syncInspector(){
   $('#pSlide').hidden=!none; $('#pGeom').hidden=none; $('#pArr').hidden=none;
   const isSvg=one&&one.tagName.toLowerCase()==='svg', isImg=one&&one.tagName==='IMG';
   $('#pText').hidden=!(one&&!isSvg&&!isImg)&&!(sel.length>1); $('#pFill').hidden=!(one&&!isImg&&!isSvg)&&!(sel.length>1);
-  $('#pAlt').hidden=!one; $('#pBuild').hidden=!one;
+  $('#pAlt').hidden=!one||(one&&one.tagName==='TABLE'); $('#pBuild').hidden=!one; $('#pTable').hidden=!(one&&one.tagName==='TABLE');
   $('#alignLbl').textContent=sel.length>1?'Align to each other':'Align to slide'; $('#distRow').hidden=sel.length<3;
   if(none){syncSlidePane(); return;}
   syncGeom(); const el=sel[0]; const cs=getComputedStyle(el);
@@ -1232,7 +1254,7 @@ function syncInspector(){
   setV('#fBW',r1(parseFloat(cs.borderTopWidth)||0)); setV('#fBS',['solid','dashed','dotted'].includes(cs.borderTopStyle)?cs.borderTopStyle:'none'); setV('#fR',r0(parseFloat(cs.borderTopLeftRadius)||0));
   const sh=el.style.boxShadow||''; setV('#fSh',[...$('#fSh').options].some(o=>o.value===sh)?sh:'');
   $('#textHint').textContent=S.editing?'Typing. Select words to style just those. Esc finishes.':'Double-click the text (or press Enter) to type. Select words while typing to bold or colour just those.';
-  if(one) syncAltPane(one), syncBuildPane(one);
+  if(one) syncAltPane(one), syncBuildPane(one); if(one&&one.tagName==='TABLE') syncTablePane(one);
 }
 function syncSlidePane(){
   const sec=curSec(); if(!sec) return; renderClicks(); setV('#sTitle',sec.getAttribute('data-title')||''); const root=rootOf(sec); setColor('sBg',getComputedStyle(root).backgroundColor);
@@ -1413,6 +1435,7 @@ document.addEventListener('keydown',e=>{
   if(mod&&kl==='s'){e.preventDefault(); if(e.shiftKey||saveConnected()) save(e.shiftKey); else saveMenu($('#bSave')); return;}
   if(mod&&kl==='o'){e.preventDefault(); openFile(); return;}
   if(textShortcut(e)) return;
+  if(S.editing&&S.editing.tagName==='TABLE'&&k==='Tab'){ e.preventDefault(); tableTab(e.shiftKey); return; }
   if(S.editing){ if(k==='Escape'){e.preventDefault(); const el=S.editing; endEdit(); setSel([el]);} else if(mod&&(kl==='z'||kl==='y')){} return; }
   if(isField(e.target)||(e.target.closest&&e.target.closest('.menu'))) return;
   if(mod&&kl==='z'){e.preventDefault(); e.shiftKey?redo():undo(); return;}
@@ -2708,6 +2731,56 @@ async function driveHistory(){
   else { if(!(await confirmDiscard())) return; const keep=Object.assign({},S.gdrive); if(loadHTML(text,keep.name,null)){ S.gdrive=keep; S.dirty=true; updateFileName(); toast(`Opened the version from ${when}. Save to make it the current version in Drive.`);} } }
 function signOutGoogle(){ try{ if(gTok&&window.google) google.accounts.oauth2.revoke(gTok,()=>{}); }catch(_){} gTok=null; gTokExp=0; toast('Signed out of Google Drive in Slidewright.'); }
 
+
+/* ======================= tables ======================= */
+const TBL_LINE='#C9CDD4';
+const cellCSS=head=>`border: 1px solid ${TBL_LINE}; padding: 8px 12px; text-align: left; vertical-align: top`+(head?`; background: ${tint(S.accent,0.88)}; font-weight: 600`:'');
+function makeTable(rows,cols,header){
+  const t=document.createElement('table'); t.style.cssText='position: absolute; width: 760px; border-collapse: collapse; font-size: 20px; line-height: 28px; background: #FFFFFF';
+  const cap=document.createElement('caption'); cap.textContent='Table'; cap.className='sw-sr'; cap.style.cssText='position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap'; t.appendChild(cap);
+  if(header){ const th=t.createTHead(), tr=th.insertRow(); for(let c=0;c<cols;c++){ const x=document.createElement('th'); x.scope='col'; x.style.cssText=cellCSS(true); x.textContent='Heading '+(c+1); tr.appendChild(x);} }
+  const tb=t.createTBody(); for(let r=0;r<rows-(header?1:0);r++){ const tr=tb.insertRow(); for(let c=0;c<cols;c++){ const x=tr.insertCell(); x.style.cssText=cellCSS(false); x.innerHTML='<br>'; } }
+  return t; }
+function insertTable(rows,cols){ endEdit(); const t=makeTable(rows,cols,true); const c=viewCenter(); placeIn(t,insertTarget(),c.x,c.y,760,(rows)*45); commit('Add table'); setSel([t]); startEdit(t); const first=t.querySelector('td,th'); if(first) caretIn(first); }
+function caretIn(cell){ const r=document.createRange(); r.selectNodeContents(cell); if(!cell.textContent.trim()) r.collapse(false); /* text is selected so typing replaces it */ const s=getSelection(); s.removeAllRanges(); s.addRange(r); savedRange=r.cloneRange(); }
+function tableOf(){ const el=S.editing&&S.editing.tagName==='TABLE'?S.editing:S.sel.length===1&&S.sel[0].tagName==='TABLE'?S.sel[0]:null; return el; }
+function curCell(t){ if(!S.editing) return null; const s=getSelection(); let n=s.rangeCount?s.anchorNode:null; if(!n&&savedRange) n=savedRange.startContainer; if(!n) return null; const c=(n.nodeType===1?n:n.parentElement).closest('td,th'); return c&&t.contains(c)?c:null; }
+function tableTab(back){ const t=S.editing; const cells=[...t.querySelectorAll('th,td')]; const c=curCell(t); let i=cells.indexOf(c);
+  if(!back&&i===cells.length-1){ tableOp('rowBelow'); const cs=[...t.querySelectorAll('th,td')]; caretIn(cs[i+1]); return; }
+  i=i<0?0:Math.max(0,Math.min(cells.length-1,i+(back?-1:1))); caretIn(cells[i]); }
+function tableOp(op){ const t=tableOf(); if(!t) return; const c=curCell(t); const rows=[...t.rows]; const tr=c?c.parentElement:rows[rows.length-1]; const ci=c?c.cellIndex:(tr.cells.length-1);
+  const blank=(like,tag)=>{ const x=document.createElement(tag||(like.tagName==='TH'&&like.scope==='row'?'th':like.tagName==='TH'&&like.closest('thead')?'td':like.tagName.toLowerCase())); x.style.cssText=like.style.cssText; if(x.tagName==='TH'&&like.scope) x.scope=like.scope; if(like.closest('thead')&&x.tagName==='TD'){ x.style.cssText=cellCSS(false); } x.innerHTML='<br>'; return x; };
+  if(op==='rowAbove'||op==='rowBelow'){ let ref=tr; if(ref.closest('thead')&&op==='rowAbove') ref=t.tBodies[0]&&t.tBodies[0].rows[0]||ref;
+    const src=ref.closest('thead')?(t.tBodies[0]&&t.tBodies[0].rows[0])||ref:ref; const nr=document.createElement('tr'); [...src.cells].forEach(x=>nr.appendChild(blank(x)));
+    if(ref.closest('thead')){ (t.tBodies[0]||t.createTBody()).prepend(nr); } else if(op==='rowAbove') ref.before(nr); else ref.after(nr); }
+  else if(op==='colLeft'||op==='colRight'){ rows.forEach(r=>{ const ref=r.cells[Math.min(ci,r.cells.length-1)]; if(!ref) return; const x=blank(ref,ref.tagName.toLowerCase()); if(ref.tagName==='TH'&&ref.closest('thead')) x.textContent='Heading'; if(op==='colLeft') ref.before(x); else ref.after(x); }); }
+  else if(op==='delRow'){ if(t.rows.length<=1){ toast('A table needs at least one row. Delete the table instead.'); return; } tr.remove(); const th=t.tHead; if(th&&!th.rows.length) th.remove(); }
+  else if(op==='delCol'){ if(rows[0].cells.length<=1){ toast('A table needs at least one column. Delete the table instead.'); return; } rows.forEach(r=>{ const x=r.cells[Math.min(ci,r.cells.length-1)]; if(x) x.remove(); }); }
+  commit('Edit table'); drawOverlay(); syncInspector(); }
+$$('[data-tbl]').forEach(b=>{ b.addEventListener('mousedown',e=>e.preventDefault()); b.onclick=()=>{ if(S.editing) restoreRange(); tableOp(b.dataset.tbl); }; });
+function syncTablePane(t){ $('#tblHead').checked=!!(t.tHead&&t.tHead.rows.length); $('#tblHeadCol').checked=[...(t.tBodies[0]?t.tBodies[0].rows:[])].every(r=>r.cells[0]&&r.cells[0].tagName==='TH'&&r.cells[0].scope==='row')&&!!(t.tBodies[0]&&t.tBodies[0].rows.length);
+  $('#tblBand').checked=t.hasAttribute('data-banded'); $('#tblEven').checked=t.style.tableLayout==='fixed';
+  const cap=t.querySelector('caption'); setV('#tblCap',cap?cap.textContent:''); $('#tblCapShow').checked=!!(cap&&!cap.classList.contains('sw-sr'));
+  $('#tblWhere').textContent=S.editing===t?'Typing. Tab moves to the next cell; Tab in the last cell adds a row. Esc finishes.':'Double-click a cell to type. Tab moves to the next cell.'; }
+function band(t){ const on=t.hasAttribute('data-banded'); [...(t.tBodies[0]?t.tBodies[0].rows:[])].forEach((r,i)=>[...r.cells].forEach(x=>{ if(x.tagName==='TH') return; x.style.background=on&&i%2===1?tint(S.accent,0.95):''; })); }
+$('#tblHead').onchange=e=>{ const t=tableOf(); if(!t) return; if(e.target.checked){ const body=t.tBodies[0]; const first=body&&body.rows[0]; const th=t.createTHead(); const tr=th.insertRow(); const n=first?first.cells.length:1;
+    for(let i=0;i<n;i++){ const x=document.createElement('th'); x.scope='col'; x.style.cssText=cellCSS(true); x.textContent='Heading '+(i+1); tr.appendChild(x); } }
+  else if(t.tHead){ const body=t.tBodies[0]||t.createTBody(); const r=t.tHead.rows[0]; const nr=document.createElement('tr'); [...r.cells].forEach(x=>{ const d=document.createElement('td'); d.style.cssText=cellCSS(false); d.innerHTML=x.innerHTML; nr.appendChild(d); }); body.prepend(nr); t.tHead.remove(); }
+  band(t); commit('Table header'); syncInspector(); drawOverlay(); };
+$('#tblHeadCol').onchange=e=>{ const t=tableOf(); if(!t) return; [...(t.tBodies[0]?t.tBodies[0].rows:[])].forEach(r=>{ const x=r.cells[0]; if(!x) return; const y=document.createElement(e.target.checked?'th':'td'); y.innerHTML=x.innerHTML; y.style.cssText=cellCSS(e.target.checked); if(e.target.checked) y.scope='row'; x.replaceWith(y); }); band(t); commit('Table header column'); syncInspector(); };
+$('#tblBand').onchange=e=>{ const t=tableOf(); if(!t) return; if(e.target.checked) t.setAttribute('data-banded',''); else t.removeAttribute('data-banded'); band(t); commit('Banded rows'); };
+$('#tblEven').onchange=e=>{ const t=tableOf(); if(!t) return; t.style.tableLayout=e.target.checked?'fixed':''; commit('Column widths'); drawOverlay(); };
+function tblCaption(t){ let c=t.querySelector('caption'); if(!c){ c=document.createElement('caption'); t.prepend(c); } return c; }
+$('#tblCap').addEventListener('change',e=>{ const t=tableOf(); if(!t) return; tblCaption(t).textContent=e.target.value.trim()||'Table'; commit('Table caption'); });
+$('#tblCapShow').onchange=e=>{ const t=tableOf(); if(!t) return; const c=tblCaption(t); if(e.target.checked){ c.classList.remove('sw-sr'); c.style.cssText='caption-side: top; text-align: left; font-weight: 600; padding: 0 0 6px'; } else { c.className='sw-sr'; c.style.cssText='position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap'; } commit('Table caption'); drawOverlay(); };
+function tablePicker(anchor){ $$('.tblpick').forEach(x=>x.remove()); const R=8,C=10; const box=el('div',{class:'menu tblpick',role:'dialog','aria-label':'Table size'}); const lab=el('div',{class:'hint',style:'padding:4px 6px',text:'Choose a size'}); const grid=el('div',{style:`display:grid;grid-template-columns:repeat(${C},18px);gap:3px;padding:6px`});
+  let hr=3,hc=3; const paint=()=>{ [...grid.children].forEach((b,i)=>{ const r=Math.floor(i/C)+1, c=i%C+1; b.style.background=r<=hr&&c<=hc?'var(--acc, #2557D6)':'transparent'; }); lab.textContent=`${hr} × ${hc} (rows × columns, first row is the header)`; };
+  for(let r=1;r<=R;r++) for(let c=1;c<=C;c++){ const b=el('button',{type:'button','aria-label':`${r} rows by ${c} columns`,style:'width:18px;height:18px;padding:0;border:1px solid #9AA0AC;border-radius:2px;cursor:pointer'}); b.onmouseenter=b.onfocus=()=>{hr=r;hc=c;paint();}; b.onclick=()=>{ box.remove(); off(); insertTable(r,c); }; grid.appendChild(b); }
+  box.append(lab,grid); const rr=anchor.getBoundingClientRect(); box.style.cssText+=`;position:fixed;left:${Math.min(rr.left,window.innerWidth-260)}px;top:${rr.bottom+4}px;width:auto`; document.body.appendChild(box); paint(); grid.children[2*C+2].focus();
+  const off=()=>document.removeEventListener('pointerdown',out,true); const out=e=>{ if(!box.contains(e.target)){ box.remove(); off(); } }; setTimeout(()=>document.addEventListener('pointerdown',out,true),0);
+  box.addEventListener('keydown',e=>{ if(e.key==='Escape'){ box.remove(); off(); anchor.focus(); } }); }
+$('#bTable').onclick=e=>tablePicker(e.currentTarget);
+
 /* ======================= code slides ======================= */
 const CODE_THEMES={
   dark:{bg:'#16181D',fg:'#E8EAF0',kw:'#9DB6F2',str:'#F7CDB0',num:'#F2B25A',com:'#959BA8',fn:'#7FD9A6',dec:'#C9A2F2',ln:'#7E8595',hl:'rgba(137,163,255,0.20)',bar:'#89A3FF'},
@@ -2839,7 +2912,7 @@ if(location.hash==='#present'&&window.opener){
   ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
 }
 
-window.__deckEditor={findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 
