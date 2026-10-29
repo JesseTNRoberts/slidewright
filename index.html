@@ -2224,13 +2224,16 @@ function presenterView(){
   const ink=()=>{try{return aw.SW_ink||null;}catch(_){return null;}};
   const slideTimer=el('span',{class:'pv-clock',title:'Time on this slide'}); let slideIdx=-1, slideT0=Date.now();
   const inkLayer=el('div',{class:'pv-ink'}); const inkSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); inkSvg.setAttribute('viewBox',`0 0 ${S.W} ${S.H}`); inkSvg.setAttribute('preserveAspectRatio','none'); inkLayer.appendChild(inkSvg);
-  let live=null; const drawInk=()=>{const I=ink(); inkSvg.innerHTML=I?I.markup():''; if(live) inkSvg.appendChild(live.el);};
+  const pvDot=document.createElementNS('http://www.w3.org/2000/svg','circle'); pvDot.setAttribute('r',String(Math.round(S.W/110))); pvDot.setAttribute('fill','#FF2D2D'); pvDot.setAttribute('style','filter:drop-shadow(0 0 6px rgba(255,45,45,.9));opacity:0;transition:opacity .25s'); let dotT=null;
+  const showDot=(x,y)=>{pvDot.setAttribute('cx',x); pvDot.setAttribute('cy',y); pvDot.style.opacity=1; clearTimeout(dotT); dotT=setTimeout(()=>pvDot.style.opacity=0,1500);};
+  let live=null; const drawInk=()=>{const I=ink(); inkSvg.innerHTML=I?I.markup():''; if(live) inkSvg.appendChild(live.el); inkSvg.appendChild(pvDot);};
   const toPt=e=>{const r=inkLayer.getBoundingClientRect(); return [(e.clientX-r.left)*S.W/r.width,(e.clientY-r.top)*S.H/r.height];};
   inkLayer.addEventListener('pointerdown',e=>{const I=ink(); if(!I) return; const t=I.getTool(); if(t!=='pen'&&t!=='hl') return; e.preventDefault(); inkLayer.setPointerCapture(e.pointerId); const [x,y]=toPt(e); I.begin(x,y);
     const pth=document.createElementNS('http://www.w3.org/2000/svg','path'); pth.setAttribute('fill','none'); pth.setAttribute('stroke',t==='hl'?'#FFD400':I.getColor()); pth.setAttribute('stroke-width',t==='hl'?22:4); pth.setAttribute('stroke-linecap','round'); if(t==='hl') pth.setAttribute('stroke-opacity','0.4'); live={el:pth,d:`M${x} ${y}`}; pth.setAttribute('d',live.d); inkSvg.appendChild(pth);});
-  inkLayer.addEventListener('pointermove',e=>{const I=ink(); if(!I) return; const [x,y]=toPt(e); if(live){I.move(x,y); live.d+=` L${x.toFixed(1)} ${y.toFixed(1)}`; live.el.setAttribute('d',live.d);} else if(I.getTool()==='laser') I.laser(x,y);});
+  inkLayer.addEventListener('pointermove',e=>{const I=ink(); if(!I) return; const [x,y]=toPt(e); if(live){I.move(x,y); live.d+=` L${x.toFixed(1)} ${y.toFixed(1)}`; live.el.setAttribute('d',live.d);} else if(I.getTool()==='laser'){I.laser(x,y); showDot(x,y);}});
+  inkLayer.addEventListener('pointerleave',()=>{pvDot.style.opacity=0;});
   const endInk=()=>{const I=ink(); if(live&&I){I.end(); live=null; drawInk();}}; inkLayer.addEventListener('pointerup',endInk); inkLayer.addEventListener('pointercancel',endInk);
-  const toolBtns={}; const syncTools=()=>{const I=ink(); const t=I?I.getTool():null; for(const k in toolBtns) toolBtns[k].setAttribute('aria-pressed',String(t===k)); inkLayer.style.pointerEvents=t?'auto':'none'; inkLayer.style.cursor=t==='laser'?'none':t?'crosshair':'';};
+  const toolBtns={}; const syncTools=()=>{const I=ink(); const t=I?I.getTool():null; for(const k in toolBtns) toolBtns[k].setAttribute('aria-pressed',String(t===k)); inkLayer.style.pointerEvents=t?'auto':'none'; inkLayer.style.cursor=t==='laser'?'none':t?'crosshair':''; if(t!=='laser') pvDot.style.opacity=0;};
   const setTool=t=>{const I=ink(); if(!I){toast('The audience window is still starting.'); return;} I.setTool(t); syncTools();};
   const tb=(label,title,t,fn)=>{const b=el('button',{class:'btn',text:label,title,onclick:fn||(()=>setTool(t))}); if(t) toolBtns[t]=b; return b;};
   const tools=el('span',{class:'pv-tools'},tb('✎ Pen','Draw on the slide (D)','pen'),tb('▮ Marker','Highlight (M)','hl'),tb('● Laser','Laser pointer (R)','laser'),
