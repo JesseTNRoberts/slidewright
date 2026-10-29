@@ -6,18 +6,32 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 
 ## What it does
 
+**Editing**
 - Drag, resize and rotate anything on a slide, with snapping to the slide and to other items
 - Scale an item with its text and padding together (Alt-drag a corner)
 - Type directly into text; double-click a card or group to work inside it
 - Paste or drop images onto a slide
-- Show alt text on every picture, flag the ones that have none, and edit or mark them decorative
-- Undo and redo for everything, including slide changes
-- Group, align, layer, duplicate; edit fill, border and font
-- Add, duplicate, reorder and delete slides; speaker notes; find and replace
-- Build steps: edit each click step of a slide and copy a change to the other steps
-- Present from the current slide
+- Equations: write LaTeX with your course notation; decks that use `\( … \)` keep that form when saved
+- Text styles picked up from the deck (Title, Subtitle, Body…), your own saved styles, and a style painter
+- Undo and redo for everything, including slide changes; group, align, layer, duplicate; find and replace
 
-Saving keeps the deck's own scripts and styles untouched, so the file still presents and exports to PDF as before. In Chrome and Edge, Save writes straight back to the file you opened. Other browsers download a copy.
+**Slides and builds**
+- New slides from the deck's own layouts, with placeholders
+- Slide sorter: see every slide at once, multi-select, drag to reorder, duplicate, delete
+- Linked build steps: an item that looks the same in every click step changes everywhere at once
+- Preview clicks and animations in place, and reorder what appears on each click
+
+**Accessibility**
+- Show alt text on every picture, flag the ones without it, and edit or mark them decorative
+- Check the whole deck for missing headings, low contrast, small text and reading order, with one-click fixes
+
+**Sharing and history**
+- Export a PDF (one page per slide or per click) and a student handout with speaker notes
+- Presenter view with notes, next slide and a timer, driving an audience window
+- Open from and commit to GitHub with a personal access token; browse a deck's history
+- Compare the deck with its saved version, an older commit or another file, slide by slide
+
+Saving keeps the deck's own scripts and styles untouched, so the file still presents and exports to PDF as before. In Chrome and Edge, Save writes straight back to the file you opened. Other browsers download a copy. GitHub features work from the GitHub Pages site; your token is kept only in your browser.
 
 ## Files
 
