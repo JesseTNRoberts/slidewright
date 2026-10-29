@@ -23,6 +23,8 @@ Slidewright opens any reveal.js deck, but several features rely on the structure
 | Code as `<pre>` (Slidewright's own blocks are `<pre class="sw-code">` with inline colours) | Code editor, syntax highlighting, line highlights per click | Edited as plain text |
 | Speaker notes in `<aside class="notes">` inside the `<section>` | Notes field, presenter view, handout | Notes not shown |
 | Alt text: `alt` on `<img>`; `role="img"` + `aria-label` on graphics; `aria-hidden="true"` for decoration | Alt-text view and accessibility check | Pictures reported as missing alt text |
+| `<meta name="slidewright-source" content="github:owner/repo@branch:path">` in `<head>` | Save commits back to that file for anyone with write access | Save asks where to save |
+| `<button class="sw-present">` and `<script id="sw-pristine">` right after the `.reveal` div, plus the Present runtime script at the end of `<body>` | The deck's Present with Slidewright button sends its own source to Slidewright (`#present`, then `postMessage`) | Button missing or sends nothing |
 
 ## Written by the converter, kept as-is
 
@@ -43,6 +45,7 @@ The converter that writes these decks lives in [`board-to-reveal/`](../board-to-
 - Real `<h1>`/`<h2>` tags when the accessibility fixes turn slide titles into headings (styled to look identical).
 - `<span class="sw-math" data-latex="…">` with MathML for equations in decks without KaTeX; in decks with KaTeX, equations stay as `\( … \)` text.
 - `<pre class="sw-code">` for code blocks, with `.sw-codehl fragment current-visible` highlight bands.
+- `<meta name="slidewright-source">` when the deck was opened from or committed to GitHub.
 - `<script type="application/json" id="slidewright-styles">` in `<head>` if you save custom text styles.
 
 Everything else, including the deck's scripts, fonts and reveal.js, is written back unchanged.

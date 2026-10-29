@@ -13,7 +13,8 @@ const ROOT = path.resolve(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'sw-builder-'));
 const DECK = path.join(TMP, 'test-board.html');
 const SAVED = path.join(TMP, 'saved.html');
-execFileSync(process.execPath, [path.join(ROOT, 'board-to-reveal/build.js'), path.join(ROOT, 'board-to-reveal/test-board'), DECK], { stdio: 'inherit' });
+const SOURCE = 'JesseTNRoberts/lectures@main:week1/test-board.html';
+execFileSync(process.execPath, [path.join(ROOT, 'board-to-reveal/build.js'), path.join(ROOT, 'board-to-reveal/test-board'), DECK, '--source=' + SOURCE], { stdio: 'inherit' });
 
 const canvas = JSON.parse(fs.readFileSync(path.join(ROOT, 'board-to-reveal/test-board/canvas.json'), 'utf8'));
 const VISIBLE = canvas.order.filter(n => canvas.boards[n].page !== 'hidden').length;
@@ -76,7 +77,7 @@ test('edit, save, and the saved deck still presents with every converter feature
   await page.evaluate(() => { __deckEditor.go(0); const el = [...document.querySelectorAll('#deck section div')].find(d => d.textContent === 'Static slide with a list'); el.textContent = 'Static slide, edited'; __deckEditor.commit('test'); });
   const html = await page.evaluate(() => __deckEditor.serialize());
   fs.writeFileSync(SAVED, html);
-  for (const [label, needle] of [['live-slide scripts', 'window.__LIVE='], ['live bindings', 'data-lv'], ['time-animated section', 'data-live='], ['PDF button', 'class="pdf-get"'], ['copyright', 'class="slide-copy"'], ['hidden slide', 'data-visibility="hidden"'], ['KaTeX source', '\\( \\hat{Y} = XW^T \\)']])
+  for (const [label, needle] of [['live-slide scripts', 'window.__LIVE='], ['live bindings', 'data-lv'], ['time-animated section', 'data-live='], ['PDF button', 'class="pdf-get"'], ['copyright', 'class="slide-copy"'], ['hidden slide', 'data-visibility="hidden"'], ['Present button', 'class="sw-present"'], ['GitHub source', 'name="slidewright-source"'], ['KaTeX source', '\\( \\hat{Y} = XW^T \\)']])
     assert(html.includes(needle), 'saved deck lost the ' + label);
 
   const deck = await present(ctx, SAVED);
@@ -118,6 +119,38 @@ test('Slidewright presents the built deck (presenter preview) without errors', a
   const deck = await present(ctx, path.join(TMP, 'unedited.html'));
   for (let i = 0; i < 30 && !(await deck.evaluate(() => Reveal.isLastSlide() && !Reveal.availableFragments().next)); i++) { await deck.evaluate(() => Reveal.next()); await wait(80); }
   assert(!deck.errors.length, 'error while stepping through: ' + deck.errors[0]);
+});
+
+test('Present with Slidewright: the deck sends itself to Slidewright, which knows its GitHub file', async (page, ctx) => {
+  // the button opens the public Slidewright address; serve this repository there instead
+  await ctx.route(/^https:\/\/www\.jessetnroberts\.com\/slidewright\//, r => { const p = new URL(r.request().url()).pathname.replace(/^\/slidewright\//, '') || 'index.html'; const f = path.join(ROOT, p);
+    if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
+    r.fulfill({ status: 200, contentType: TYPES[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) }); });
+  const deck = await present(ctx, DECK);
+  await deck.evaluate(() => Reveal.slide(2));
+  const [sw] = await Promise.all([ctx.waitForEvent('page'), deck.click('.sw-present')]);
+  sw.errors = []; sw.on('pageerror', e => sw.errors.push(e.message));
+  await sw.waitForFunction(() => { const h = document.querySelector('.modal h2'); return h && /^Present /.test(h.textContent); }, null, { timeout: 20000 });
+  const st = await sw.evaluate(() => ({ n: __deckEditor.S.slides.length, gh: __deckEditor.S.gh, name: __deckEditor.S.name, cur: __deckEditor.S.cur }));
+  assert(st.n === ALL || st.n === VISIBLE, 'Slidewright got ' + st.n + ' slides');
+  assert(st.name === 'test-board.html', 'deck name: ' + st.name);
+  assert(st.gh && st.gh.owner === 'JesseTNRoberts' && st.gh.repo === 'lectures' && st.gh.branch === 'main' && st.gh.path === 'week1/test-board.html', 'GitHub source not read: ' + JSON.stringify(st.gh));
+  const buf = fs.readFileSync(DECK); const want = require('crypto').createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
+  assert(st.gh.sha === want, 'blob sha of the sent deck does not match the file, so Save would report a false conflict');
+  assert(st.cur > 0, 'did not start from the slide the deck was on');
+  await sw.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Just edit').click());
+  // a deck opened from a file cannot read itself: it rebuilds its source from what it remembered before reveal.js ran
+  const rebuilt = await deck.evaluate(() => SW_present.rebuild());
+  const file = buf.toString('utf8');
+  const part = (h, a, b) => h.slice(h.indexOf(a), h.indexOf(b));
+  // innerHTML is not byte-identical to the file, so compare the parsed documents
+  const same = await deck.evaluate(([a, b]) => { const P = h => new DOMParser().parseFromString(h, 'text/html'); const x = P(a), y = P(b);
+    return x.querySelector('.reveal').outerHTML === y.querySelector('.reveal').outerHTML && x.head.innerHTML === y.head.innerHTML; }, [rebuilt, file]);
+  assert(same, 'rebuilt deck differs from the file');
+  assert(part(rebuilt, '<head>', '</head>').length > part(file, '<head>', '</head>').length * 0.98, 'rebuilt head is incomplete');
+  assert((rebuilt.match(/<script/g) || []).length === (file.match(/<script/g) || []).length, 'rebuilt deck has a different number of scripts');
+  assert(!sw.errors.length, 'Slidewright error: ' + sw.errors[0]);
+  assert(!deck.errors.length, 'deck error: ' + deck.errors[0]);
 });
 
 /* ---------------------------------------------------------------- runner */

@@ -2,6 +2,9 @@
 //   * a "Download slides as PDF" button on the title slide. The PDF is made in the browser
 //     (no print dialog): one 1280x720 page per slide, each slide as it looks after its last click.
 //   * a small copyright line on every slide.
+//   * a small "Present with Slidewright" button in the corner of the window: it opens the deck in
+//     Slidewright's presenter view (notes, timer, pen, laser, audience window). Anyone can use it;
+//     <meta name="slidewright-source"> tells Slidewright which GitHub file to save edits back to.
 //   * Ctrl/Cmd+P prints one slide-sized page per slide, last click step only (reveal's own
 //     letter-paper print stylesheet is removed).
 // Both the button and the copyright line find a free spot on their slide when the deck loads,
@@ -12,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_HOLDER = 'Dr. Jesse Roberts';
+const DEFAULT_SLIDEWRIGHT = 'https://www.jessetnroberts.com/slidewright/';
 
 const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const noClose = s => s.replace(/<\/script/gi, '<\\/script');
@@ -27,7 +31,7 @@ html,body,.reveal-viewport{width:1280px!important;height:auto!important;overflow
 .reveal .slides>section:last-child{break-after:auto;page-break-after:auto}
 .reveal .slides section .fragment{opacity:1!important;visibility:visible!important;transition:none!important}
 .reveal [data-pos]{transition:none!important}
-.reveal .controls,.reveal .progress,.reveal .backgrounds,.reveal .slide-number,.reveal .speaker-notes,.reveal .aria-status,.pdf-get{display:none!important}
+.reveal .controls,.reveal .progress,.reveal .backgrounds,.reveal .slide-number,.reveal .speaker-notes,.reveal .aria-status,.pdf-get,.sw-present{display:none!important}
 }`;
 
 const CSS = `
@@ -63,6 +67,43 @@ const BUTTON = `<div class="pdf-get">
 Download slides as PDF</button>
 <span class="pdf-note">All slides, one per page</span>
 </div>`;
+
+// ---- "Present with Slidewright" ----
+const PRESENT_CSS = `
+/* ---- Present with Slidewright (corner of the window, not on a slide) ---- */
+.sw-present{position:fixed;top:10px;right:10px;z-index:30;display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 10px;border:1px solid rgba(22,24,29,.25);border-radius:6px;background:rgba(251,251,250,.92);color:#16181D;font:500 13px/1 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;opacity:.35;transition:opacity .2s,background-color .15s,border-color .15s}
+.sw-present svg{width:16px;height:16px;flex:none}
+.sw-present:hover,.sw-present:focus-visible{opacity:1;background:#DCE5FA;border-color:#2557D6;color:#1B3F9E}
+.sw-present:focus-visible{outline:3px solid #2557D6;outline-offset:2px}
+:fullscreen .sw-present,html.print-pdf .sw-present,.reveal.overview~.sw-present{display:none!important}
+@media print{.sw-present{display:none!important}}
+`;
+const presentButton = () => `<button class="sw-present" type="button" title="Open this deck in Slidewright: presenter view with notes, timer, pen and laser pointer">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M12 16.5v3.5M8.5 20h7"/><path d="M10.5 8.5v4.5l3.75-2.25z" fill="currentColor"/></svg>
+Present with Slidewright</button>`;
+// Placed right after the slides, before any script runs: remembers the deck as written, so a deck opened
+// from a file (which cannot read itself) can still send its own source to Slidewright.
+const CAPTURE = '<script id="sw-pristine">window.__swPristine={html:[].map.call(document.documentElement.attributes,function(a){return[a.name,a.value];}),body:[].map.call(document.body.attributes,function(a){return[a.name,a.value];}),head:document.head.children.length,inner:document.body.innerHTML};</script>';
+const presentRuntime = url => '<script>\n' + String.raw`(function(){
+var SW=${JSON.stringify(url)}, ORIGIN=new URL(SW, location.href).origin;
+function attrs(l){ return l.map(function(a){ return ' '+a[0]+'="'+String(a[1]).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'; }).join(''); }
+function rebuild(){ var P=window.__swPristine, cap=document.getElementById('sw-pristine'), NL=String.fromCharCode(10); if(!P||!cap) return null;
+  var head=[].slice.call(document.head.children,0,P.head).map(function(e){ return e.outerHTML; }).join(NL);
+  var later=[].filter.call(document.body.children,function(e){ return e.tagName==='SCRIPT' && (cap.compareDocumentPosition(e)&4); }).map(function(e){ return e.outerHTML; }).join(NL);
+  return '<!doctype html>'+NL+'<html'+attrs(P.html)+'>'+NL+'<head>'+NL+head+NL+'</head>'+NL+'<body'+attrs(P.body)+'>'+P.inner+NL+later+NL+'</body>'+NL+'</html>'+NL; }
+function source(){ var fall=function(){ var h=rebuild(); return h?{html:h,exact:false}:null; };
+  if(!/^https?:$/.test(location.protocol)) return Promise.resolve(fall());
+  return fetch(location.href.split('#')[0],{cache:'force-cache'}).then(function(r){ return r.ok?r.text().then(function(t){ return {html:t,exact:true}; }):fall(); }).catch(fall); }
+function name(){ var n=decodeURIComponent(location.pathname.split('/').pop()||''); return /\.html?$/i.test(n)?n:((document.title||'lecture').replace(/[\/:*?"<>|]+/g,'')+'.html'); }
+function open(){ var w=window.open(SW+'#present','_blank'); if(!w){ alert('Allow pop-ups for this page to present with Slidewright.'); return; }
+  var src=source();
+  function onMsg(e){ if(e.source!==w||!e.data||e.data.type!=='slidewright-ready') return; window.removeEventListener('message',onMsg);
+    src.then(function(r){ if(!r){ return; } w.postMessage({type:'slidewright-deck',html:r.html,exact:r.exact,name:name(),slide:(window.Reveal&&Reveal.getIndices?Reveal.getIndices().h:0)},ORIGIN); }); }
+  window.addEventListener('message',onMsg); }
+window.SW_present={open:open,source:source,rebuild:rebuild};
+document.querySelectorAll('.sw-present').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation(); open(); }); });
+})();` + '\n</script>';
+const sourceMeta = src => src ? `<meta name="slidewright-source" content="${esc(/^github:/.test(src) ? src : 'github:' + src)}">` : '';
 
 // Screen readers hear the notice once (title slide), not on every slide.
 const copyright = (n, holder, year) =>
@@ -238,19 +279,28 @@ const runtimeScript = () => '<script>\n' + RUNTIME + '\n</script>';
 //   --year=2026          year shown (default: the current year)
 //   --no-copyright       leave the copyright line out
 //   --no-pdf             leave the download button out
+//   --no-present         leave the "Present with Slidewright" button out
+//   --slidewright=URL    where that button opens Slidewright (default: ${DEFAULT_SLIDEWRIGHT})
+//   --source=owner/repo@branch:path   the deck's file on GitHub, so Slidewright saves edits back there
 function options(argv) {
   const get = k => { const a = argv.find(x => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : null; };
   return {
     holder: get('copyright') || DEFAULT_HOLDER,
     year: get('year') || String(new Date().getFullYear()),
     copyright: !argv.includes('--no-copyright'),
-    pdf: !argv.includes('--no-pdf')
+    pdf: !argv.includes('--no-pdf'),
+    present: !argv.includes('--no-present'),
+    slidewright: get('slidewright') || DEFAULT_SLIDEWRIGHT,
+    source: get('source') || ''
   };
 }
 
 // Patch an already exported deck (its <section>s must be direct children of .slides).
 function apply(html, opt) {
-  if (/class="(pdf-get|slide-copy)"/.test(html)) throw new Error('this deck already has the PDF button or copyright line');
+  if (/class="(pdf-get|slide-copy)"/.test(html)) {
+    if (opt.present && !/class="sw-present"/.test(html)) return Object.assign(applyPresent(html, opt), { presentOnly: true });
+    throw new Error('this deck already has the PDF button, copyright line and Present button');
+  }
   const he = html.indexOf('</head>');
   const se = html.lastIndexOf('</style>', he);
   if (he < 0 || se < 0) throw new Error('no <style> in <head>');
@@ -271,7 +321,23 @@ function apply(html, opt) {
     html = html.slice(0, init) + 'Reveal.initialize({scrollActivationWidth:null,' + html.slice(init + 'Reveal.initialize({'.length);
   const bodyEnd = html.lastIndexOf('</body>');
   html = html.slice(0, bodyEnd) + jspdfScript() + '\n' + runtimeScript() + '\n' + html.slice(bodyEnd);
-  return { html, slides: n };
+  return opt.present ? applyPresent(html, opt) : { html, slides: n };
 }
 
-module.exports = { CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };
+// Add only the "Present with Slidewright" button (and the deck's GitHub location, if given).
+function applyPresent(html, opt) {
+  if (/class="sw-present"/.test(html)) throw new Error('this deck already has the Present button');
+  const he = html.indexOf('</head>'), se = html.lastIndexOf('</style>', he);
+  if (he < 0 || se < 0) throw new Error('no <style> in <head>');
+  html = html.slice(0, se) + PRESENT_CSS + html.slice(se);
+  if (opt.source) { const t = html.indexOf('<title'); html = html.slice(0, t) + sourceMeta(opt.source) + '\n' + html.slice(t); }
+  // after the slides, before the first script in <body>
+  const b = html.indexOf('<body'), first = html.indexOf('<script', b);
+  if (b < 0 || first < 0) throw new Error('no script in <body>');
+  html = html.slice(0, first) + presentButton() + '\n' + CAPTURE + '\n' + html.slice(first);
+  const bodyEnd = html.lastIndexOf('</body>');
+  html = html.slice(0, bodyEnd) + presentRuntime(opt.slidewright) + '\n' + html.slice(bodyEnd);
+  return { html, slides: (html.match(/<section[\s>]/g) || []).length };
+}
+
+module.exports = { PRESENT_CSS, presentButton, CAPTURE, presentRuntime, sourceMeta, applyPresent, CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };

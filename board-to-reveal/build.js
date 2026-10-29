@@ -391,6 +391,7 @@ html,body{background:#FBFBFA}
 [data-build-dot]{transition:cx .55s ease, cy .55s ease, opacity .3s;opacity:0}
 ${animCss}
 ${extras.CSS}
+${OPT.present ? extras.PRESENT_CSS : ''}
 `;
 const js = `
 function curStep(sec){ var k=0; sec.querySelectorAll('.fragment.visible[data-fragment-index]').forEach(function(f){ k=Math.max(k, +f.dataset.fragmentIndex+1); }); return k; }
@@ -472,6 +473,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${extras.sourceMeta(OPT.source)}
 <title>${esc(canvas.title || 'Lecture')}</title>
 <style>
 ${fontCss('ibm-plex-sans', ['300', '400', '500', '600'])}${fontCss('ibm-plex-mono', ['400', '500'])}
@@ -484,6 +486,7 @@ ${css}
 <div class="reveal"><div class="slides">
 ${sections.map(s => s.html).join('\n')}
 </div></div>
+${OPT.present ? extras.presentButton() + '\n' + extras.CAPTURE : ''}
 <script>
 ${noClose(fs.readFileSync(path.join(VENDOR, 'reveal.js-5.1.0/reveal.js'), 'utf8'))}
 </script>
@@ -494,10 +497,11 @@ ${js}
 </script>
 ${OPT.pdf ? extras.jspdfScript() : ''}
 ${(OPT.pdf || OPT.copyright) ? extras.runtimeScript() : ''}
+${OPT.present ? extras.presentRuntime(OPT.slidewright) : ''}
 </body>
 </html>
 `;
 fs.writeFileSync(OUT, html);
 console.log('built', OUT, '|', sections.filter(s => !s.hidden).length, 'slides' + (sections.some(s => s.hidden) ? ' (+' + sections.filter(s => s.hidden).length + ' hidden)' : '') + ' |', (html.length / 1e6).toFixed(1), 'MB |', usesMath ? 'KaTeX inlined' : 'no math',
-  '|', OPT.pdf ? 'PDF button' : 'no PDF button', '|', OPT.copyright ? '© ' + OPT.year + ' ' + OPT.holder : 'no copyright');
+  '|', OPT.pdf ? 'PDF button' : 'no PDF button', '|', OPT.present ? 'Present button' : 'no Present button', '|', OPT.copyright ? '© ' + OPT.year + ' ' + OPT.holder : 'no copyright');
 sections.forEach(s => console.log(String(s.N).padStart(3), s.file.padEnd(28), (s.hidden ? '[hidden] ' : '') + s.title + (s.anim ? '  [' + s.anim + ' keyframes]' : '') + (s.live ? '  [time-animated]' : '')));

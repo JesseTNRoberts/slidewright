@@ -224,6 +224,22 @@ test('Google Drive: open, save back, and save a copy (Google mocked)', async (_,
   if (page.errors.length) throw new Error('page error: ' + page.errors[0]);
 });
 
+test('a deck from someone else’s repo: Save offers sign-in, then a copy when GitHub refuses', async (page, ctx) => {
+  await page.evaluate(() => { __deckEditor.S.gh = { owner: 'someone', repo: 'lectures', branch: 'main', path: 'w1.html', sha: null, fromDeck: true }; });
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'Save this deck'));
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Cancel').click());
+  // signed in, but without write access: GitHub answers 404 or 403
+  await ctx.route(/^https:\/\/api\.github\.com\//, r => r.fulfill({ status: r.request().method() === 'PUT' ? 403 : 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"message":"Resource not accessible"}' }));
+  await page.evaluate(() => { try { localStorage.setItem('slidewright.ghToken', 'tok'); } catch (_) { __deckEditor.S.ghTokenMem = 'tok'; } });
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'Commit to GitHub'));
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Commit').click());
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'You can’t save to this repository'), null, { timeout: 10000 });
+  const buttons = await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].map(b => b.textContent));
+  assert(buttons.includes('Download a copy') && buttons.includes('Save to my GitHub…'), 'copy options missing: ' + buttons);
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

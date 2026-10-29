@@ -1429,6 +1429,8 @@ function serialize(){
   const doc=S.doc, host=S.host; const editing=S.editing; if(editing) editing.removeAttribute('contenteditable');
   host.replaceChildren(); S.slides.forEach(s=>{host.appendChild(doc.createTextNode('\n')); host.appendChild(savedClone(s,doc));}); host.appendChild(doc.createTextNode('\n'));
   if(editing) editing.setAttribute('contenteditable','true');
+  if(S.gh&&doc.head){ let m=doc.head.querySelector('meta[name="slidewright-source"]'); if(!m){ m=doc.createElement('meta'); m.setAttribute('name','slidewright-source'); doc.head.insertBefore(m,doc.head.querySelector('title')||null); }
+    m.setAttribute('content',`github:${S.gh.owner}/${S.gh.repo}@${S.gh.branch}:${S.gh.path}`); }
   const dt=doc.doctype?'<!DOCTYPE '+doc.doctype.name+'>':'<!doctype html>';
   const html=dt+'\n'+doc.documentElement.outerHTML; host.replaceChildren(); return html;
 }
@@ -2353,14 +2355,19 @@ async function openFromGitHub(){ if(!(await confirmDiscard())) return; const pic
 async function ghFileSha(repo,path,branch){try{const m=await gh(`/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`); return m.sha;}catch(e){if(e.status===404) return null; throw e;}}
 async function ghPut(repo,branch,path,html,message,sha){return gh(`/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'PUT',body:Object.assign({message,content:utf8b64(html),branch},sha?{sha}:{})});}
 async function commitToGitHub(){
-  if(!S.gh) return saveToGitHub(); if(!(await ensureToken())) return;
+  if(!S.gh) return saveToGitHub();
+  if(S.gh.fromDeck&&!ghTok()){ const v=await modal('Save this deck',`This deck lives in ${S.gh.owner}/${S.gh.repo} on GitHub. If you can edit that repository, sign in with GitHub and Save commits your changes there. Otherwise, keep your own copy.`,[['Cancel',null],['Download a copy','dl'],...(gdriveConfigured()?[['Save to Google Drive','drive']]:[]),['Sign in with GitHub','ok','primary']]);
+    if(v==='dl') return saveLocal(true); if(v==='drive') return saveToDrive(true); if(v!=='ok') return; }
+  if(!(await ensureToken())) return;
   const msg=el('textarea',{rows:'3'}); msg.value=`Update ${S.gh.path.split('/').pop()} with Slidewright`;
   const v=await modal('Commit to GitHub',el('div',{class:'stack'},el('p',{class:'hint',text:`${S.gh.owner}/${S.gh.repo} · ${S.gh.branch} · ${S.gh.path}`}),el('label',{class:'fld'},'What changed?',msg)),[['Cancel',null],['Download instead','dl'],['Commit','ok','primary']]);
   if(v==='dl') return saveLocal(true); if(v!=='ok') return;
   endEdit(); commit(); const html=serialize(); const repo=S.gh.owner+'/'+S.gh.repo; const prog=progressCard('Committing to GitHub'); prog.set(0.4,'Uploading '+(html.length/1e6).toFixed(1)+' MB');
-  try{ const r=await ghPut(repo,S.gh.branch,S.gh.path,html,msg.value.trim()||'Update deck',S.gh.sha); S.gh.sha=r.content.sha; markSaved(`Committed to ${repo} (${r.commit.sha.slice(0,7)}).`); }
+  try{ if(!S.gh.sha) S.gh.sha=await ghFileSha(repo,S.gh.path,S.gh.branch); const r=await ghPut(repo,S.gh.branch,S.gh.path,html,msg.value.trim()||'Update deck',S.gh.sha); S.gh.sha=r.content.sha; S.gh.fromDeck=false; markSaved(`Committed to ${repo} (${r.commit.sha.slice(0,7)}).`); }
   catch(e){ if(e.status===409||e.status===422){ prog.close(); const c=await modal('The file changed on GitHub','Someone (or another tab) committed to this file after you opened it. Overwriting replaces their version with yours; it stays in the file’s history.',[['Cancel',null],['Download mine instead','dl'],['Overwrite','ok','primary']]);
       if(c==='dl') return saveLocal(true); if(c==='ok'){try{const sha=await ghFileSha(repo,S.gh.path,S.gh.branch); const r=await ghPut(repo,S.gh.branch,S.gh.path,html,msg.value.trim()||'Update deck',sha); S.gh.sha=r.content.sha; markSaved(`Committed to ${repo} (${r.commit.sha.slice(0,7)}).`);}catch(e2){toast(e2.message,'warn');}} return; }
+    if(e.status===403||e.status===404){ prog.close(); const c=await modal('You can’t save to this repository',`Your GitHub account can’t write to ${repo}, so your changes can’t go back to the original. Keep your own copy instead.`,[['Cancel',null],['Download a copy','dl'],...(gdriveConfigured()?[['Save to Google Drive','drive']]:[]),['Save to my GitHub…','gh','primary']]);
+      if(c==='dl') return saveLocal(true); if(c==='drive') return saveToDrive(true); if(c==='gh'){ S.gh=null; updateFileName(); return saveToGitHub(); } return; }
     toast(e.message,'warn'); } finally{prog.close();}
 }
 async function saveToGitHub(){ const pick=await ghPicker('save'); if(!pick||!pick.path) return; endEdit(); commit(); const html=serialize(); const prog=progressCard('Committing to GitHub'); prog.set(0.4,'Uploading');
@@ -2555,7 +2562,7 @@ function inkScript(cfg){ return '<script>('+function(cfg){
   if(document.readyState==='complete') start(); else window.addEventListener('load',start);
 }.toString()+')('+JSON.stringify(cfg)+');<\/script>'; }
 const HIST_SHIM='<script>(function(){try{if(/^about:/.test(location.href)){["replaceState","pushState"].forEach(function(n){var f=history[n].bind(history);history[n]=function(){try{return f.apply(null,arguments);}catch(e){}};});}}catch(e){}})();<\/script>';
-function presentHTML(opts){ let html=serialize(); const h=html.search(/<head[^>]*>/i); if(h>=0){const e=html.indexOf('>',h)+1; html=html.slice(0,e)+HIST_SHIM+html.slice(e);} const i=html.lastIndexOf('</body>'); const inj=inkScript({toolbar:!!opts.toolbar,colors:['#E0407A','#2557D6','#16181D','#1C7A4C'],hl:'#FFD400'}); return i<0?html+inj:html.slice(0,i)+inj+html.slice(i); }
+function presentHTML(opts){ let html=serialize(); const h=html.search(/<head[^>]*>/i); if(h>=0){const e=html.indexOf('>',h)+1; html=html.slice(0,e)+HIST_SHIM+html.slice(e);} const i=html.lastIndexOf('</body>'); const inj='<style>.sw-present{display:none!important}</style>'+inkScript({toolbar:!!opts.toolbar,colors:['#E0407A','#2557D6','#16181D','#1C7A4C'],hl:'#FFD400'}); return i<0?html+inj:html.slice(0,i)+inj+html.slice(i); }
 
 /* ======================= Google Drive (open, save, history) ======================= */
 const gmeta=n=>((document.querySelector(`meta[name="${n}"]`)||{}).content||'').trim();
@@ -2706,8 +2713,31 @@ async function editCode(target,opt){
 
 /* ======================= boot ======================= */
 S.sample=true; loadHTML(sampleDeck(),'sample-deck.html',null); S.sample=false;
-checkRecovery();
-window.__deckEditor={gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+if(location.hash!=='#present') checkRecovery();
+/* ======================= "Present with Slidewright" (a deck's own button sends itself here) ======================= */
+function parseSource(html){ const m=html.slice(0,200000).match(/<meta[^>]+name=["']slidewright-source["'][^>]*>/i); if(!m) return null; const c=(m[0].match(/content=["']([^"']*)["']/i)||[])[1]||'';
+  const g=c.match(/^github:([\w.-]+)\/([\w.-]+)@([^:]+):(.+)$/); return g?{owner:g[1],repo:g[2],branch:g[3],path:g[4]}:null; }
+async function gitBlobSha(text){ try{ const b=new TextEncoder().encode(text); const head=new TextEncoder().encode('blob '+b.length+'\0'); const all=new Uint8Array(head.length+b.length); all.set(head); all.set(b,head.length);
+  return [...new Uint8Array(await crypto.subtle.digest('SHA-1',all))].map(x=>x.toString(16).padStart(2,'0')).join(''); }catch(_){ return null; } }
+async function receiveDeck(d,origin){
+  const name=String(d.name||'lecture.html').replace(/[\\/:*?"<>|]+/g,'').slice(0,120)||'lecture.html';
+  if(!loadHTML(String(d.html),name,null)) return;
+  const src=parseSource(String(d.html)); if(src){ S.gh=Object.assign(src,{sha:d.exact?await gitBlobSha(String(d.html)):null,fromDeck:true}); updateFileName(); }
+  const vis=S.slides.map((s,i)=>i).filter(i=>S.slides[i].getAttribute('data-visibility')!=='hidden'); const at=vis[Math.max(0,Math.min(vis.length-1,+(d.slide||0)))]; if(at>0) go(at);
+  const from=/^https?:/.test(origin)?origin.replace(/^https?:\/\//,''):'a file on this computer';
+  const v=await modal('Present '+(S.doc&&S.doc.title||name),el('div',{class:'stack'},el('p',{text:'Presenter view shows your notes, the next slide and a timer on this screen, and opens the slides in a second window for the projector. Drag that window to the projector and press F there for full screen.'}),
+    el('p',{class:'hint',text:`Sent from ${from}. Starts at slide ${(vis.indexOf(S.cur)+1)||1}.${src?` You can edit it here too; saving goes back to ${src.owner}/${src.repo} if you can edit that repository.`:' You can edit it here too and save your own copy.'}`})),
+    [['Just edit','edit'],['Full screen here','full'],['Presenter view','pv','primary']]);
+  if(v==='pv') presenterView(); else if(v==='full') present();
+}
+if(location.hash==='#present'&&window.opener){
+  let got=false; const ready=()=>{ if(got) return; try{ window.opener.postMessage({type:'slidewright-ready'},'*'); }catch(_){} };
+  window.addEventListener('message',e=>{ const d=e.data; if(got||e.source!==window.opener||!d||d.type!=='slidewright-deck'||typeof d.html!=='string') return; got=true;
+    history.replaceState(null,'',location.pathname+location.search); receiveDeck(d,e.origin||'null'); });
+  ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
+}
+
+window.__deckEditor={receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 
