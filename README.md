@@ -12,6 +12,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 - Type directly into text; double-click a card or group to work inside it
 - Paste or drop images onto a slide
 - Equations: type `\( … \)`, `$…$` or `$$…$$` straight into text and it renders when you finish typing, or right-click → Insert equation to open a LaTeX editor at the cursor; decks that use `\( … \)` keep that form when saved
+- Code blocks with syntax highlighting (Python, JavaScript, shell, JSON), line numbers, dark or light colours, and line ranges that light up one click at a time
 - Text styles picked up from the deck (Title, Subtitle, Body…), your own saved styles, and a style painter
 - Undo and redo for everything, including slide changes; group, align, layer, duplicate; find and replace
 
@@ -27,7 +28,8 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 
 **Sharing and history**
 - Export a PDF (one page per slide or per click) and a student handout with speaker notes
-- Presenter view with notes, next slide and a timer, driving an audience window
+- Presenter view with notes, next slide, a total and per-slide timer, driving an audience window
+- Live presenting tools: pen, highlighter, laser pointer, undo and clear, and blank screen; strokes stay with their slide and mirror from presenter view to the audience window (keys D, M, R, E, C, B)
 - Work in a local copy of a repo: open from a folder, reopen recent decks, and Save writes straight back (Chrome and Edge)
 - Sign in with GitHub to open, commit and browse the history of decks in your repositories (needs the one-time relay setup in [`auth-relay/`](auth-relay/README.md); a personal access token also works)
 - Compare the deck with its saved version, an older commit or another file, slide by slide
