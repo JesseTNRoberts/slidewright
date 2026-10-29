@@ -177,6 +177,48 @@ test('slide sorter moves a slide and undo restores the order', async page => {
   assert((await order())[1] === 'Build steps', 'undo did not restore order');
 });
 
+test('Google Drive: open, save back, and save a copy (Google mocked)', async (_, ctx) => {
+  const deck = fs.readFileSync(SAMPLE, 'utf8'); const seen = { puts: [], creates: [] }; let version = '5';
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': 'Location' };
+  await ctx.route(/\/index\.html$/, async r => { const res = await r.fetch(); let b = await res.text();
+    b = b.replace('name="slidewright-google-client-id" content=""', 'name="slidewright-google-client-id" content="test.apps.googleusercontent.com"').replace('name="slidewright-google-api-key" content=""', 'name="slidewright-google-api-key" content="key"');
+    r.fulfill({ response: res, body: b }); });
+  await ctx.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'application/javascript', body:
+    `window.google=window.google||{};google.accounts={oauth2:{initTokenClient(c){const t={callback:c.callback,requestAccessToken(){setTimeout(()=>t.callback({access_token:'tok',expires_in:3600}),10);}};return t;},revoke(t,cb){cb&&cb();}}};` }));
+  await ctx.route('https://apis.google.com/js/api.js', r => r.fulfill({ contentType: 'application/javascript', body:
+    `window.gapi={load(n,o){const V=function(){};['setMimeTypes','setIncludeFolders','setMode','setSelectFolderEnabled'].forEach(m=>V.prototype[m]=function(){return this;});
+      const B=function(){};['addView','setOAuthToken','setDeveloperKey','setTitle','setAppId'].forEach(m=>B.prototype[m]=function(){return this;});
+      B.prototype.setCallback=function(cb){this.cb=cb;return this;}; B.prototype.build=function(){const cb=this.cb;return{setVisible(){setTimeout(()=>cb({action:'picked',docs:[window.__pick]}),10);}};};
+      google.picker={DocsView:V,DocsUploadView:V,PickerBuilder:B,ViewId:{DOCS:'d',FOLDERS:'f'},DocsViewMode:{LIST:'l'},Action:{PICKED:'picked',CANCEL:'cancel'}}; o.callback();}};` }));
+  await ctx.route(/^https:\/\/www\.googleapis\.com\//, async r => { const q = r.request(), u = new URL(q.url()), m = q.method();
+    if (m === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+    assert(m === 'PUT' || q.headers().authorization === 'Bearer tok', 'missing Drive token on ' + u.pathname);
+    const json = o => r.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify(o) });
+    if (m === 'GET' && u.searchParams.get('alt') === 'media') return r.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/html' }, cors), body: deck });
+    if (m === 'GET') return json({ id: 'deck1', name: 'drive-deck.html', version, parents: ['folderA'] });
+    if (u.searchParams.get('uploadType') === 'resumable') { const meta = JSON.parse(q.postData() || '{}'); if (m === 'POST') seen.creates.push(meta);
+      return r.fulfill({ status: 200, headers: Object.assign({ location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=' + (m === 'POST' ? 'new' : 'deck1') }, cors), body: '' }); }
+    if (m === 'PUT') { const id = u.searchParams.get('upload_id'); seen.puts.push({ id, body: q.postData() }); version = String(+version + 1);
+      return json(id === 'new' ? { id: 'deck2', name: seen.creates[0].name, version: '1', parents: seen.creates[0].parents } : { id: 'deck1', name: 'drive-deck.html', version, parents: ['folderA'] }); }
+    r.fulfill({ status: 404, headers: cors, body: '{}' });
+  });
+  const page = await openEditor(ctx);
+  await page.evaluate(() => { window.__pick = { id: 'deck1', name: 'drive-deck.html' }; });
+  await page.evaluate(() => __deckEditor.gdrive.openFromDrive());
+  await page.waitForFunction(() => __deckEditor.gdrive.state() && __deckEditor.S.slides.length === 5, null, { timeout: 15000 });
+  assert((await page.textContent('#fileName')).includes('Drive: drive-deck.html'), 'file name does not show Drive');
+  await page.evaluate(() => { const h = __deckEditor.S.slides[0].querySelector('h1,h2,[data-title],div div'); h.textContent += ' DRIVEEDIT'; __deckEditor.commit('t'); });
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(() => !__deckEditor.S.dirty, null, { timeout: 15000 });
+  assert(seen.puts.length === 1 && seen.puts[0].id === 'deck1' && seen.puts[0].body.includes('DRIVEEDIT'), 'save did not upload the edited deck to the same file');
+  assert((seen.puts[0].body.match(/<section/g) || []).length === 5, 'uploaded deck lost slides');
+  await page.evaluate(() => { window.__pick = { id: 'folderB', name: 'Lectures' }; });
+  await page.evaluate(() => __deckEditor.gdrive.saveToDrive(true));
+  await page.waitForFunction(() => __deckEditor.gdrive.state().id === 'deck2', null, { timeout: 15000 });
+  assert(seen.creates[0].parents[0] === 'folderB' && /copy\.html$/.test(seen.creates[0].name), 'copy not created in the chosen folder');
+  if (page.errors.length) throw new Error('page error: ' + page.errors[0]);
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

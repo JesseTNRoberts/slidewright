@@ -6,6 +6,10 @@
 <meta name="description" content="Slidewright: edit reveal.js HTML slide decks visually. Drag, resize, scale, type, paste images, and check alt text.">
 <!-- Address of the GitHub sign-in relay (see auth-relay/README.md). Leave empty to use personal access tokens. -->
 <meta name="slidewright-auth-relay" content="https://slidewright-auth.jesse-tn-roberts.workers.dev">
+<!-- Google Drive: fill these in after the setup in docs/GOOGLE-DRIVE.md -->
+<meta name="slidewright-google-client-id" content="">
+<meta name="slidewright-google-api-key" content="">
+<meta name="slidewright-google-app-id" content="">
 <link rel="icon" type="image/svg+xml" href="brand/slidewright-mark.svg">
 <link rel="apple-touch-icon" href="brand/slidewright-mark.png">
 <title>Slidewright</title>
@@ -613,7 +617,7 @@ function loadHTML(text,name,handle){
   let secs=$$('.reveal .slides > section',doc);
   if(!secs.length) secs=$$('section',doc).filter(s=>!(s.parentElement&&s.parentElement.closest('section')));
   if(!secs.length){toast('No slides found. The file needs reveal.js <section> slides.','warn');return false;}
-  if(PV.on) stopPreview(); if(S.painter) stopPainter(); endEdit(true); mo.disconnect(); pending=[]; undoStack.length=0; redoStack.length=0; S.gh=null; lastAudit=null; S.localPath=null; S.localGit=false;
+  if(PV.on) stopPreview(); if(S.painter) stopPainter(); endEdit(true); mo.disconnect(); pending=[]; undoStack.length=0; redoStack.length=0; S.gh=null; S.gdrive=null; lastAudit=null; S.localPath=null; S.localGit=false;
   S.host=secs[0].parentNode;
   S.doc=doc; S.name=name||'deck.html'; S.handle=handle||null;
   detectSize(doc);
@@ -1370,7 +1374,7 @@ function menu(anchor,items){$$('.menu').forEach(m=>m.remove()); const m=document
   setTimeout(()=>{const off=e=>{if(!m.contains(e.target)){m.remove(); anchor.setAttribute('aria-expanded','false'); document.removeEventListener('pointerdown',off,true);}}; document.addEventListener('pointerdown',off,true);},0);
   m.addEventListener('keydown',e=>{const bs=$$('button',m); const i=bs.indexOf(document.activeElement); if(e.key==='ArrowDown'){e.preventDefault(); bs[(i+1)%bs.length].focus();} if(e.key==='ArrowUp'){e.preventDefault(); bs[(i-1+bs.length)%bs.length].focus();} if(e.key==='Escape'){m.remove(); anchor.focus();}});}
 $('#bShape').onclick=e=>menu(e.currentTarget,[['Rectangle',()=>insertShape('rect')],['Rounded box',()=>insertShape('round')],['Ellipse',()=>insertShape('ellipse')],['Label pill',()=>insertShape('label')],['Line',()=>insertShape('line')],['Arrow',()=>insertShape('arrow')]]);
-$('#bMore').onclick=e=>{const anchor=e.currentTarget; menu(anchor,[['New blank deck',newDeck],['Open…',openFile,'Ctrl O'],['Open from folder…',openFolder],['Open recent…',()=>openRecentMenu(anchor)],['Open from GitHub…',openFromGitHub],['Save a copy…',()=>saveLocal(true),'Ctrl ⇧ S'],[S.gh?'Commit to GitHub…':'Save to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
+$('#bMore').onclick=e=>{const anchor=e.currentTarget; if(gdriveUsable()) gLoad().catch(()=>{}); menu(anchor,[['New blank deck',newDeck],['Open…',openFile,'Ctrl O'],['Open from folder…',openFolder],['Open recent…',()=>openRecentMenu(anchor)],['Open from GitHub…',openFromGitHub],['Open from Google Drive…',openFromDrive],['Save a copy…',()=>saveLocal(true),'Ctrl ⇧ S'],[S.gh?'Commit to GitHub…':'Save to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],['Save a copy to Google Drive…',()=>saveToDrive(true)],...(S.gh?[['Version history…',showHistory]]:[]),...(S.gdrive?[['Google Drive versions…',driveHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),...(gTok?[['Sign out of Google Drive',signOutGoogle]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
 $('#bText').onclick=()=>insertText();
 $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertImageFile(f);});
 $('#bAlt').onclick=()=>toggleAlt();
@@ -1430,7 +1434,7 @@ function serialize(){
 }
 let dlPromise=null; function downloadsCap(){if(!dlPromise) dlPromise=(window.claude&&window.claude.use)?window.claude.use('downloads').catch(()=>null):Promise.resolve(null); return dlPromise;}
 downloadsCap();
-async function save(asCopy){ if(S.gh&&!asCopy) return commitToGitHub(); return saveLocal(asCopy); }
+async function save(asCopy){ if(S.gh&&!asCopy) return commitToGitHub(); if(S.gdrive&&!asCopy) return saveToDrive(false); return saveLocal(asCopy); }
 async function saveLocal(asCopy){
   if(!S.doc) return; if(S.editing) endEdit(); commit(); const html=serialize();
   if(!asCopy&&S.handle&&S.handle.createWritable){try{const w=await S.handle.createWritable(); await w.write(html); await w.close(); markSaved(S.localGit?`Saved ${S.localPath||S.name}. Commit it with GitHub Desktop or git when you’re ready.`:'Saved '+S.name+'.'); return;}catch(e){if(e&&e.name==='AbortError') return;}}
@@ -1440,7 +1444,7 @@ async function saveLocal(asCopy){
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download=S.name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},5000); markSaved('Downloaded '+S.name+'.');
 }
 function markSaved(msg){S.dirty=false; updateFileName(); toast(msg); idb('delete','draft');}
-function updateFileName(){const f=$('#fileName'); f.textContent=S.gh?`${S.gh.repo}/${S.gh.path}`:(S.localPath||S.name); f.title=(S.gh?`GitHub: ${S.gh.owner}/${S.gh.repo} · ${S.gh.branch} · ${S.gh.path}`:S.name)+(S.dirty?' (unsaved changes)':''); f.classList.toggle('dirty',S.dirty);}
+function updateFileName(){const f=$('#fileName'); f.textContent=S.gh?`${S.gh.repo}/${S.gh.path}`:S.gdrive?`Drive: ${S.gdrive.name}`:(S.localPath||S.name); f.title=(S.gh?`GitHub: ${S.gh.owner}/${S.gh.repo} · ${S.gh.branch} · ${S.gh.path}`:S.gdrive?`Google Drive: ${S.gdrive.name}`:S.name)+(S.dirty?' (unsaved changes)':''); f.classList.toggle('dirty',S.dirty);}
 window.addEventListener('beforeunload',e=>{if(S.dirty){e.preventDefault(); e.returnValue='';}});
 /* recovery copy in IndexedDB */
 let dbp=null; function idbOpen(){if(!dbp) dbp=new Promise(ok=>{try{const r=indexedDB.open('deck-editor',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>ok(r.result); r.onerror=()=>ok(null); r.onblocked=()=>ok(null);}catch(_){ok(null);}}); return dbp;}
@@ -2553,6 +2557,89 @@ function inkScript(cfg){ return '<script>('+function(cfg){
 const HIST_SHIM='<script>(function(){try{if(/^about:/.test(location.href)){["replaceState","pushState"].forEach(function(n){var f=history[n].bind(history);history[n]=function(){try{return f.apply(null,arguments);}catch(e){}};});}}catch(e){}})();<\/script>';
 function presentHTML(opts){ let html=serialize(); const h=html.search(/<head[^>]*>/i); if(h>=0){const e=html.indexOf('>',h)+1; html=html.slice(0,e)+HIST_SHIM+html.slice(e);} const i=html.lastIndexOf('</body>'); const inj=inkScript({toolbar:!!opts.toolbar,colors:['#E0407A','#2557D6','#16181D','#1C7A4C'],hl:'#FFD400'}); return i<0?html+inj:html.slice(0,i)+inj+html.slice(i); }
 
+/* ======================= Google Drive (open, save, history) ======================= */
+const gmeta=n=>((document.querySelector(`meta[name="${n}"]`)||{}).content||'').trim();
+const GCFG={clientId:gmeta('slidewright-google-client-id'),apiKey:gmeta('slidewright-google-api-key'),appId:gmeta('slidewright-google-app-id')};
+const GSCOPE='https://www.googleapis.com/auth/drive.file';
+const gdriveConfigured=()=>!!(GCFG.clientId&&GCFG.apiKey);
+const gdriveUsable=()=>gdriveConfigured()&&(location.protocol==='https:'||/^(localhost|127\.0\.0\.1)$/.test(location.hostname));
+let gTok=null, gTokExp=0, gTokenClient=null, gLibs=null;
+function gLoad(){ if(!gLibs) gLibs=(async()=>{
+  await loadScript('https://accounts.google.com/gsi/client',()=>window.google&&google.accounts&&google.accounts.oauth2);
+  await loadScript('https://apis.google.com/js/api.js',()=>window.gapi&&gapi.load);
+  await new Promise((ok,bad)=>gapi.load('picker',{callback:ok,onerror:()=>bad(new Error('Google Picker failed to load')),timeout:15000,ontimeout:()=>bad(new Error('Google Picker timed out'))}));
+})().catch(e=>{gLibs=null; throw e;}); return gLibs; }
+function gExplain(){ if(!gdriveConfigured()){ modal('Google Drive isn’t set up yet','Google Drive needs a one-time setup in Google Cloud: an OAuth client ID, an API key and the project number. The steps are in docs/GOOGLE-DRIVE.md in the Slidewright repository.',[['OK',null,'primary']]); return false; }
+  if(!gdriveUsable()){ toast('Google Drive works from www.jessetnroberts.com/slidewright, not from this copy.','warn'); return false; } return true; }
+function gToken(){ return new Promise((ok,bad)=>{
+  if(gTok&&Date.now()<gTokExp-60000) return ok(gTok);
+  if(!gTokenClient) gTokenClient=google.accounts.oauth2.initTokenClient({client_id:GCFG.clientId,scope:GSCOPE,callback:()=>{}});
+  gTokenClient.callback=r=>{ if(r&&r.error){bad(new Error(r.error_description||r.error)); return;} gTok=r.access_token; gTokExp=Date.now()+(+r.expires_in||3600)*1000; ok(gTok); };
+  gTokenClient.error_callback=e=>bad(new Error(e&&e.type==='popup_closed'?'Google sign-in was closed.':e&&e.type==='popup_failed_to_open'?'The Google sign-in window was blocked. Allow pop-ups for this site.':(e&&(e.message||e.type))||'Google sign-in failed.'));
+  gTokenClient.requestAccessToken({prompt:gTok?'':''});
+});}
+async function gReady(){ if(!gExplain()) return false; try{ await gLoad(); await gToken(); return true; }catch(e){ toast(e.message,'warn'); return false; } }
+async function gfetch(url,opts){ opts=opts||{}; const h=Object.assign({Authorization:'Bearer '+gTok},opts.headers||{});
+  let r; try{ r=await fetch(url,Object.assign({},opts,{headers:h})); }catch(e){ throw new Error('Couldn’t reach Google Drive. Check your connection.'); }
+  if(r.status===401){ gTok=null; throw Object.assign(new Error('Your Google sign-in expired. Try again.'),{status:401}); }
+  if(!r.ok){ let m=''; try{ m=(await r.json()).error.message; }catch(_){} throw Object.assign(new Error('Google Drive said: '+(m||r.statusText)+' ('+r.status+')'),{status:r.status}); }
+  return r; }
+const GD='https://www.googleapis.com/drive/v3/files', GU='https://www.googleapis.com/upload/drive/v3/files';
+const GFIELDS='id,name,version,modifiedTime,parents,webViewLink';
+function gPick(mode){ return new Promise(res=>{ const P=google.picker; let view;
+  if(mode==='open'){ view=new P.DocsView(P.ViewId.DOCS).setMimeTypes('text/html').setIncludeFolders(true).setMode(P.DocsViewMode.LIST); }
+  else { view=new P.DocsView(P.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setMode(P.DocsViewMode.LIST); }
+  const b=new P.PickerBuilder().addView(view).setOAuthToken(gTok).setDeveloperKey(GCFG.apiKey).setTitle(mode==='open'?'Open a deck from Google Drive':'Choose the folder to save into')
+    .setCallback(d=>{ if(d.action===P.Action.PICKED) res(d.docs&&d.docs[0]); else if(d.action===P.Action.CANCEL) res(null); });
+  if(GCFG.appId) b.setAppId(GCFG.appId);
+  if(mode==='open') b.addView(new P.DocsUploadView().setIncludeFolders(true));
+  b.build().setVisible(true); }); }
+async function openFromDrive(){
+  if(!(await confirmDiscard())) return; if(!(await gReady())) return;
+  const doc=await gPick('open'); if(!doc) return;
+  const prog=progressCard('Opening from Google Drive'); prog.set(0.3,doc.name||'');
+  try{ const meta=await (await gfetch(`${GD}/${doc.id}?fields=${GFIELDS}&supportsAllDrives=true`)).json(); prog.set(0.5);
+    const text=await (await gfetch(`${GD}/${doc.id}?alt=media&supportsAllDrives=true`)).text(); prog.set(0.9);
+    if(loadHTML(text,meta.name,null)){ S.gdrive={id:meta.id,name:meta.name,version:meta.version,parents:meta.parents||[],link:meta.webViewLink}; updateFileName(); toast(`Opened ${meta.name} from Google Drive. Save writes back to it.`); }
+  }catch(e){ toast(e.message,'warn'); } finally{ prog.close(); } }
+async function gUpload(html,{id,name,parent}){
+  const q='uploadType=resumable&supportsAllDrives=true&fields='+GFIELDS; const meta=id?{}:{name,mimeType:'text/html',parents:parent?[parent]:undefined};
+  const blob=new Blob([html],{type:'text/html'});
+  const r=await gfetch(id?`${GU}/${id}?${q}`:`${GU}?${q}`,{method:id?'PATCH':'POST',headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'text/html','X-Upload-Content-Length':String(blob.size)},body:JSON.stringify(meta)});
+  const loc=r.headers.get('Location');
+  if(loc){ const r2=await fetch(loc,{method:'PUT',headers:{'Content-Type':'text/html'},body:blob}); if(!r2.ok) throw new Error('Google Drive upload failed ('+r2.status+').'); return r2.json(); }
+  if(blob.size>5e6) throw new Error('Google Drive didn’t start the upload. Try again.');
+  const bnd='sw'+Math.random().toString(36).slice(2); const body=new Blob([`--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bnd}\r\nContent-Type: text/html\r\n\r\n`,blob,`\r\n--${bnd}--`]);
+  return (await gfetch(id?`${GU}/${id}?uploadType=multipart&supportsAllDrives=true&fields=${GFIELDS}`:`${GU}?uploadType=multipart&supportsAllDrives=true&fields=${GFIELDS}`,{method:id?'PATCH':'POST',headers:{'Content-Type':'multipart/related; boundary='+bnd},body})).json(); }
+async function saveToDrive(asNew){
+  if(!(await gReady())) return; endEdit(); commit();
+  let target=S.gdrive&&!asNew?S.gdrive:null, parent=null, name=S.name.replace(/\.htm$/i,'.html');
+  if(!target){ const folder=await gPick('save'); if(!folder) return; parent=folder.id; if(asNew&&S.gdrive) name=name.replace(/\.html$/i,' copy.html'); }
+  const html=serialize(); const prog=progressCard('Saving to Google Drive'); prog.set(0.3,(html.length/1e6).toFixed(1)+' MB');
+  try{
+    if(target){ const cur=await (await gfetch(`${GD}/${target.id}?fields=${GFIELDS}&supportsAllDrives=true`)).json();
+      if(target.version&&cur.version&&String(cur.version)!==String(target.version)){ prog.close(); const c=await modal('The file changed in Google Drive',`${cur.name} was changed in Drive after you opened it. Overwriting replaces that version with yours; Drive keeps the old one in its version history.`,[['Cancel',null],['Save as a new file','new'],['Overwrite','ok','primary']]);
+        if(c==='new') return saveToDrive(true); if(c!=='ok') return; } }
+    const res=await gUpload(html,target?{id:target.id}:{name,parent});
+    S.gdrive={id:res.id,name:res.name,version:res.version,parents:res.parents||(parent?[parent]:[]),link:res.webViewLink}; S.name=res.name;
+    markSaved(`Saved ${res.name} to Google Drive.`);
+  }catch(e){ toast(e.message,'warn'); } finally{ prog.close(); } }
+async function driveHistory(){
+  if(!S.gdrive){ toast('Open a deck from Google Drive first.'); return; } if(!(await gReady())) return;
+  let revs; try{ revs=(await (await gfetch(`${GD}/${S.gdrive.id}/revisions?fields=revisions(id,modifiedTime,lastModifyingUser/displayName,size)&pageSize=100`)).json()).revisions||[]; }catch(e){ toast(e.message,'warn'); return; }
+  revs.reverse(); const list=el('div',{class:'hist'}); let resolve; const done=new Promise(r=>resolve=r);
+  revs.forEach((rv,i)=>list.appendChild(el('div',{class:'hist-row'},el('div',{class:'hm'},el('b',{text:i===0?'Latest saved version':new Date(rv.modifiedTime).toLocaleString()}),el('span',{class:'hint',text:`${(rv.lastModifyingUser&&rv.lastModifyingUser.displayName)||'Someone'} · ${rel(rv.modifiedTime)}${rv.size?' · '+(rv.size/1e6).toFixed(1)+' MB':''}`})),
+    el('button',{class:'btn',text:'Compare',onclick:()=>resolve({rv,act:'cmp'})}),el('button',{class:'btn',text:'Open',onclick:()=>resolve({rv,act:'open'})}))));
+  if(!revs.length) list.appendChild(el('p',{class:'hint',style:'padding:12px',text:'Drive has no earlier versions of this file yet.'}));
+  const bg=el('div',{class:'modal-bg'}); const m=el('div',{class:'modal wide',role:'dialog','aria-modal':'true'},el('h2',{text:'Versions of '+S.gdrive.name}),el('p',{class:'hint',text:'Google Drive keeps earlier versions of uploaded files for 30 days (up to 100 versions). Compare shows what’s different from the deck as it is now.'}),list,el('div',{class:'actions'},el('button',{class:'btn',text:'Close',onclick:()=>resolve(null)})));
+  bg.appendChild(m); document.body.appendChild(bg); const kd=e=>{if(e.key==='Escape'){e.stopPropagation(); resolve(null);}}; document.addEventListener('keydown',kd,true);
+  const pick=await done; bg.remove(); document.removeEventListener('keydown',kd,true); if(!pick) return;
+  let text; const prog=progressCard('Fetching that version'); try{ text=await (await gfetch(`${GD}/${S.gdrive.id}/revisions/${pick.rv.id}?alt=media`)).text(); }catch(e){ prog.close(); toast(e.message,'warn'); return; } prog.close();
+  const when=new Date(pick.rv.modifiedTime).toLocaleString();
+  if(pick.act==='cmp') compareDecks(text,'the version from '+when);
+  else { if(!(await confirmDiscard())) return; const keep=Object.assign({},S.gdrive); if(loadHTML(text,keep.name,null)){ S.gdrive=keep; S.dirty=true; updateFileName(); toast(`Opened the version from ${when}. Save to make it the current version in Drive.`);} } }
+function signOutGoogle(){ try{ if(gTok&&window.google) google.accounts.oauth2.revoke(gTok,()=>{}); }catch(_){} gTok=null; gTokExp=0; toast('Signed out of Google Drive in Slidewright.'); }
+
 /* ======================= code slides ======================= */
 const CODE_THEMES={
   dark:{bg:'#16181D',fg:'#E8EAF0',kw:'#9DB6F2',str:'#F7CDB0',num:'#F2B25A',com:'#959BA8',fn:'#7FD9A6',dec:'#C9A2F2',ln:'#7E8595',hl:'rgba(137,163,255,0.20)',bar:'#89A3FF'},
@@ -2620,7 +2707,7 @@ async function editCode(target,opt){
 /* ======================= boot ======================= */
 S.sample=true; loadHTML(sampleDeck(),'sample-deck.html',null); S.sample=false;
 checkRecovery();
-window.__deckEditor={PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 

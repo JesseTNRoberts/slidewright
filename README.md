@@ -32,6 +32,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 - Live presenting tools: pen, highlighter, laser pointer, undo and clear, and blank screen; strokes stay with their slide and mirror from presenter view to the audience window (keys D, M, R, E, C, B)
 - Work in a local copy of a repo: open from a folder, reopen recent decks, and Save writes straight back (Chrome and Edge)
 - Sign in with GitHub to open, commit and browse the history of decks in your repositories (needs the one-time relay setup in [`auth-relay/`](auth-relay/README.md); a personal access token also works)
+- Open decks from Google Drive and save them back, with Drive's version history (needs the one-time Google Cloud setup in [`docs/GOOGLE-DRIVE.md`](docs/GOOGLE-DRIVE.md))
 - Compare the deck with its saved version, an older commit or another file, slide by slide
 
 Saving keeps the deck's own scripts and styles untouched, so the file still presents and exports to PDF as before. In Chrome and Edge, Save writes straight back to the file you opened. Other browsers download a copy. GitHub features work from the GitHub Pages site; your token is kept only in your browser.
