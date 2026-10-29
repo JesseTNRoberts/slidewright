@@ -448,7 +448,7 @@ test('pictures: crop keeps the rest in place, can be undone, and Compress shrink
   assert(await page.isVisible('#pImage'), 'Picture panel not shown');
   await page.click('#iCrop'); await page.waitForSelector('.crop-box');
   const h = await (await page.$('.crop-box i[data-h="w"]')).boundingBox(); const w = await (await page.$('.crop-wrap')).boundingBox();
-  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down(); await page.mouse.move(w.x + w.width / 2, h.y + h.height / 2, { steps: 5 }); await page.mouse.up();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down(); await page.mouse.move(h.x + h.width / 2 + w.width / 2, h.y + h.height / 2, { steps: 5 }); await page.mouse.up();
   await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Crop').click());
   await page.waitForFunction(() => document.getElementById('tcrop').naturalWidth > 0 && document.getElementById('tcrop').naturalWidth < 260, null, { timeout: 5000 });
   const r = await page.evaluate(() => { const i = document.getElementById('tcrop'); const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d'); g.drawImage(i, 0, 0); const px = g.getImageData(Math.floor(c.width / 2), 50, 1, 1).data; return { nw: i.naturalWidth, left: parseFloat(i.style.left), width: parseFloat(i.style.width), px: [...px].slice(0, 3) }; });
