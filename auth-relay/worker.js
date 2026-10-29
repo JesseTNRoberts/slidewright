@@ -53,13 +53,19 @@ async function handle(req, env) {
       if (url.searchParams.get('error')) return back({ error: url.searchParams.get('error_description') || url.searchParams.get('error') });
       const code = url.searchParams.get('code'); if (!code) return back({ error: 'GitHub didn’t return a sign-in code.' });
       if (!env.GITHUB_CLIENT_SECRET) return back({ error: 'The relay is missing GITHUB_CLIENT_SECRET.' });
-      let r; try { r = await fetch('https://github.com/login/oauth/access_token', {
-        method: 'POST',
-        headers: { 'accept': 'application/json', 'content-type': 'application/json', 'user-agent': 'slidewright-auth-relay' },
-        body: JSON.stringify({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: url.origin + '/callback' })
-      }); } catch (e) { return back({ error: 'The relay could not reach GitHub (' + (e && e.message || e) + ').' }); }
+      // GitHub sometimes answers 429 (too many requests) to Cloudflare's shared addresses: wait and retry a few times.
+      let r;
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try { r = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: { 'accept': 'application/json', 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'slidewright-auth-relay (+https://github.com/JesseTNRoberts/slidewright)' },
+          body: new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: url.origin + '/callback' }).toString()
+        }); } catch (e) { if (attempt === 4) return back({ error: 'The relay could not reach GitHub (' + (e && e.message || e) + ').' }); r = null; }
+        if (r && r.status !== 429 && r.status < 500) break;
+        if (attempt < 4) { const ra = r && +r.headers.get('retry-after'); await new Promise(ok => setTimeout(ok, Math.min(ra > 0 ? ra * 1000 : 1500 * attempt, 5000))); }
+      }
       let j = {}; try { j = await r.json(); } catch {}
-      if (!j.access_token) return back({ error: (j.error_description || j.error || 'GitHub did not issue a token') + ' (GitHub answered ' + r.status + (j.error ? ', ' + j.error : '') + ').' });
+      if (!j.access_token) return back({ error: (j.error_description || j.error || 'GitHub did not issue a token') + ' (GitHub answered ' + r.status + (j.error ? ', ' + j.error : '') + ')' + (r.status === 429 ? '. GitHub is limiting sign-ins through the relay right now; try again in a few minutes, or use a personal access token instead.' : '.') });
       return back({ token: j.access_token, scope: j.scope || '' });
     }
 
