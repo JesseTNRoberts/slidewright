@@ -877,6 +877,9 @@ stageScroll.addEventListener('pointerdown',e=>{
   if(!p){ if(!e.shiftKey){S.scope=null; setSel([]);} startMarquee(e); return; }
   let it=p.item; if(S.scope&&!S.scope.contains(it)) S.scope=null;
   if(e.shiftKey||e.metaKey||e.ctrlKey){const i=S.sel.indexOf(it); if(i>=0) S.sel.splice(i,1); else S.sel.push(it); setSel(S.sel); e.preventDefault(); return;}
+  /* A click (not a drag) on a part of the selected group selects that part; dragging still moves the whole group. */
+  if(S.sel.length===1&&S.sel[0]===it&&hasBlockKids(it)){ const sc0=S.scope; S.scope=it; const inner=itemFor(p.hit); S.scope=sc0;
+    if(inner&&inner!==it){ const x0=e.clientX, y0=e.clientY; const up=ev=>{ window.removeEventListener('pointerup',up,true); if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<4&&S.sel.length===1&&S.sel[0]===it&&inner.isConnected){ S.scope=it; setSel([inner]); } }; window.addEventListener('pointerup',up,true); } }
   if(!S.sel.includes(it)) setSel([it]);
   e.preventDefault(); stageScroll.focus({preventScroll:true});
   startMove(e);

@@ -316,6 +316,33 @@ test('presenter view: audience on the external display, presenter on the built-i
   assert(await page.evaluate(() => !document.querySelector('#presenter').classList.contains('pv-dup')), 'extend did not turn duplicate off');
 });
 
+test('click into a selected group selects the part; double-click edits its text; dragging moves the group', async page => {
+  await page.evaluate(() => { const D = __deckEditor; D.go(0); const sec = D.S.slides[0]; const root = sec.querySelector(':scope > div') || sec;
+    const g = document.createElement('div'); g.id = 'tgrp'; g.style.cssText = 'position:absolute;left:300px;top:420px;width:500px;height:140px';
+    g.innerHTML = '<div id="tpa" style="position:absolute;left:0;top:0;width:220px;height:60px;font-size:28px">Part one</div><div id="tpb" style="position:absolute;left:260px;top:60px;width:220px;height:60px;font-size:28px">Part two</div>';
+    root.appendChild(g); D.commit('t'); D.setSel([]); });
+  const box = async id => { const b = await (await page.$('#' + id)).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+  const sel = () => page.evaluate(() => __deckEditor.S.sel.map(e => e.id).join(','));
+  let c = await box('tpa');
+  await page.mouse.click(c.x, c.y); await wait(150);
+  assert(await sel() === 'tgrp', 'first click should select the group, got ' + await sel());
+  await page.mouse.click(c.x, c.y); await wait(150);
+  assert(await sel() === 'tpa', 'second click should select the part, got ' + await sel());
+  c = await box('tpb'); await page.mouse.click(c.x, c.y); await wait(150);
+  assert(await sel() === 'tpb', 'clicking a sibling part should select it, got ' + await sel());
+  assert(await page.evaluate(() => !__deckEditor.S.editing), 'a single click should not start editing');
+  await page.mouse.dblclick(c.x, c.y); await wait(200);
+  assert(await page.evaluate(() => __deckEditor.S.editing && __deckEditor.S.editing.id === 'tpb'), 'double-click on the selected part should edit its text');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.evaluate(() => __deckEditor.setSel([])); await wait(100);
+  // select the group, then drag it by one of its parts: the whole group moves
+  c = await box('tpa'); await page.mouse.click(c.x, c.y); await wait(100);
+  const left0 = await page.evaluate(() => document.getElementById('tgrp').getBoundingClientRect().left);
+  await page.mouse.move(c.x, c.y); await page.mouse.down(); for (let i = 1; i <= 5; i++) await page.mouse.move(c.x + i * 12, c.y); await page.mouse.up(); await wait(150);
+  const left1 = await page.evaluate(() => document.getElementById('tgrp').getBoundingClientRect().left);
+  assert(left1 - left0 > 30, 'dragging a selected group by its part did not move the group');
+  assert(await sel() === 'tgrp', 'dragging should keep the group selected, got ' + await sel());
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
