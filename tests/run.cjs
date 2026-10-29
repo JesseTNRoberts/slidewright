@@ -271,6 +271,19 @@ test('a deck sent from a web page finds its own file on GitHub (GitHub mocked)',
   assert(await page.evaluate(() => __deckEditor.findOnGitHub('https://jessetnroberts.com/ml-lectures/week3/cnn.html', 'deadbeef')) === null, 'matched a file that differs');
 });
 
+test('Open and Save offer where to go; Save goes straight back once connected', async page => {
+  const items = () => page.evaluate(() => [...document.querySelectorAll('.menu button')].map(b => b.firstChild.textContent));
+  await page.click('#bOpen'); const open = await items();
+  for (const x of ['From this computer…', 'From Google Drive…', 'From GitHub…']) assert(open.includes(x), 'Open menu lacks ' + x + ': ' + open);
+  await page.keyboard.press('Escape');
+  await page.click('#bSave'); const save = await items();
+  assert(save.join('|') === 'To this computer…|To Google Drive…|To GitHub…', 'Save menu: ' + save);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { document.querySelectorAll('.menu').forEach(m => m.remove()); __deckEditor.S.gh = { owner: 'a', repo: 'b', branch: 'main', path: 'c.html', sha: 'x' }; });
+  await page.click('#bSave'); await wait(200);
+  assert(!(await page.$('.menu')), 'Save showed a menu for a deck connected to GitHub');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

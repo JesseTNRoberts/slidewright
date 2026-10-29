@@ -1374,12 +1374,19 @@ function menu(anchor,items){$$('.menu').forEach(m=>m.remove()); const m=document
   setTimeout(()=>{const off=e=>{if(!m.contains(e.target)){m.remove(); anchor.setAttribute('aria-expanded','false'); document.removeEventListener('pointerdown',off,true);}}; document.addEventListener('pointerdown',off,true);},0);
   m.addEventListener('keydown',e=>{const bs=$$('button',m); const i=bs.indexOf(document.activeElement); if(e.key==='ArrowDown'){e.preventDefault(); bs[(i+1)%bs.length].focus();} if(e.key==='ArrowUp'){e.preventDefault(); bs[(i-1+bs.length)%bs.length].focus();} if(e.key==='Escape'){m.remove(); anchor.focus();}});}
 $('#bShape').onclick=e=>menu(e.currentTarget,[['Rectangle',()=>insertShape('rect')],['Rounded box',()=>insertShape('round')],['Ellipse',()=>insertShape('ellipse')],['Label pill',()=>insertShape('label')],['Line',()=>insertShape('line')],['Arrow',()=>insertShape('arrow')]]);
-$('#bMore').onclick=e=>{const anchor=e.currentTarget; if(gdriveUsable()) gLoad().catch(()=>{}); menu(anchor,[['New blank deck',newDeck],['Open…',openFile,'Ctrl O'],['Open from folder…',openFolder],['Open recent…',()=>openRecentMenu(anchor)],['Open from GitHub…',openFromGitHub],['Open from Google Drive…',openFromDrive],['Save a copy…',()=>saveLocal(true),'Ctrl ⇧ S'],[S.gh?'Commit to GitHub…':'Save to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],['Save a copy to Google Drive…',()=>saveToDrive(true)],...(S.gh?[['Version history…',showHistory]]:[]),...(S.gdrive?[['Google Drive versions…',driveHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),...(gTok?[['Sign out of Google Drive',signOutGoogle]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
+$('#bMore').onclick=e=>{const anchor=e.currentTarget; if(gdriveUsable()) gLoad().catch(()=>{}); menu(anchor,[['New blank deck',newDeck],['Save a copy to this computer…',()=>saveLocal(true),'Ctrl ⇧ S'],['Save a copy to Google Drive…',()=>saveToDrive(true)],[S.gh?'Commit to GitHub…':'Save a copy to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),...(S.gdrive?[['Google Drive versions…',driveHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),...(gTok?[['Sign out of Google Drive',signOutGoogle]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
 $('#bText').onclick=()=>insertText();
 $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertImageFile(f);});
 $('#bAlt').onclick=()=>toggleAlt();
 $('#bUndo').onclick=undo; $('#bRedo').onclick=redo;
-$('#bOpen').onclick=openFile; $('#bSave').onclick=()=>save(false);
+function openMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
+  menu(anchor,[['From this computer…',openFile,'Ctrl O'],...(window.showDirectoryPicker&&canFS()?[['From a folder…',openFolder],['Recent…',()=>openRecentMenu(anchor)]]:[]),['From Google Drive…',openFromDrive],['From GitHub…',openFromGitHub],['New blank deck',newDeck]]); }
+/* Save goes straight back when the deck is connected to a place it can write; otherwise it asks where. */
+const saveConnected=()=>!!(S.gh||S.gdrive||S.web||(S.handle&&S.handle.createWritable));
+function saveMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
+  menu(anchor,[['To this computer…',()=>saveLocal(false)],['To Google Drive…',()=>saveToDrive(true)],['To GitHub…',saveToGitHub]]); }
+$('#bOpen').setAttribute('aria-haspopup','menu'); $('#bOpen').setAttribute('aria-expanded','false');
+$('#bOpen').onclick=e=>openMenu(e.currentTarget); $('#bSave').onclick=e=>saveConnected()?save(false):saveMenu(e.currentTarget);
 $('#bPresent').onclick=e=>menu(e.currentTarget,[['Present here, full screen',present],['Presenter view + audience window',presenterView]]); $('#bKeys').onclick=shortcuts;
 $('#snapChk').onchange=e=>{S.snap=e.target.checked;};
 
@@ -1389,7 +1396,7 @@ document.addEventListener('keydown',e=>{
   if($('.modal-bg')||$('.pop')||$('#sorter')||$('#presenter')||e.target.closest&&e.target.closest('.de-svgedit')) return;
   if(PV.on){const k=e.key; if(e.metaKey||e.ctrlKey) return; if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(k)){e.preventDefault(); pvStep(1);} else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){e.preventDefault(); pvStep(-1);} else if(k==='Escape'||k.toLowerCase()==='p'){e.preventDefault(); stopPreview();} return;}
   if(S.painter&&e.key==='Escape'){stopPainter(); return;}
-  if(mod&&kl==='s'){e.preventDefault(); save(e.shiftKey); return;}
+  if(mod&&kl==='s'){e.preventDefault(); if(e.shiftKey||saveConnected()) save(e.shiftKey); else saveMenu($('#bSave')); return;}
   if(mod&&kl==='o'){e.preventDefault(); openFile(); return;}
   if(S.editing){ if(k==='Escape'){e.preventDefault(); const el=S.editing; endEdit(); setSel([el]);} else if(mod&&(kl==='z'||kl==='y')){} return; }
   if(isField(e.target)||(e.target.closest&&e.target.closest('.menu'))) return;
