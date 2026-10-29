@@ -406,6 +406,40 @@ test('tables: insert from the picker, type with Tab, add and remove rows and col
   assert(/<table[^>]*position: absolute/.test(out) && out.includes('<caption') && !out.includes('contenteditable'), 'table not saved cleanly');
 });
 
+test('video and audio: add a file with captions, a YouTube link, and both are saved', async (page, ctx) => {
+  // a tiny real video made in the page (canvas recording), so the test needs no fixture file
+  const made = await page.evaluate(async () => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 36; const g = cv.getContext('2d'); const st = cv.captureStream(10);
+    const rec = new MediaRecorder(st, { mimeType: MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '' }); const parts = []; rec.ondataavailable = e => parts.push(e.data);
+    rec.start(); for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? '#2557D6' : '#E0407A'; g.fillRect(0, 0, 64, 36); await new Promise(r => setTimeout(r, 100)); } rec.stop(); await new Promise(r => rec.onstop = r);
+    const b = new Blob(parts, { type: 'video/webm' }); const u8 = new Uint8Array(await b.arrayBuffer()); let s = ''; u8.forEach(c => s += String.fromCharCode(c)); return btoa(s); }).catch(() => null);
+  const vid = path.join(require('os').tmpdir(), 'sw-test.webm'); const vtt = path.join(require('os').tmpdir(), 'sw-test.srt');
+  if (made) fs.writeFileSync(vid, Buffer.from(made, 'base64')); else fs.writeFileSync(vid, Buffer.alloc(2000));
+  fs.writeFileSync(vtt, '1\n00:00:00,000 --> 00:00:01,000\nHello there\n');
+  await page.evaluate(() => __deckEditor.go(1));
+  let chooser = page.waitForEvent('filechooser'); await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^Video from/.test(b.textContent)).click());
+  await (await chooser).setFiles(vid);
+  await page.waitForFunction(() => __deckEditor.S.sel[0] && __deckEditor.S.sel[0].tagName === 'VIDEO', null, { timeout: 10000 });
+  assert(await page.isVisible('#pMedia'), 'Media panel not shown for a video');
+  chooser = page.waitForEvent('filechooser'); await page.click('#mCapAdd'); await (await chooser).setFiles(vtt); await wait(200);
+  const cap = await page.evaluate(() => { const t = __deckEditor.S.sel[0].querySelector('track[kind=captions]'); return t && decodeURIComponent(escape(atob(t.getAttribute('src').split(',')[1]))); });
+  assert(cap && cap.startsWith('WEBVTT') && cap.includes('00:00:00.000 --> 00:00:01.000'), 'SRT captions not converted: ' + cap);
+  await page.check('#mAuto'); assert(await page.evaluate(() => __deckEditor.S.sel[0].hasAttribute('data-autoplay')), 'autoplay flag not set');
+  // YouTube link
+  await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^YouTube/.test(b.textContent)).click());
+  await page.fill('.modal input[type=url]', 'https://youtu.be/dQw4w9WgXcQ?t=5'); await page.fill('.modal input[type=text]', 'Demo video');
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Add').click()); await wait(200);
+  const emb = await page.evaluate(() => { const e = __deckEditor.S.sel[0]; const f = e.querySelector('iframe'); return { cls: e.className, ds: f.getAttribute('data-src'), src: f.getAttribute('src'), title: f.title }; });
+  assert(emb.cls === 'sw-embed' && /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/.test(emb.ds) && !emb.src && emb.title === 'Demo video', 'YouTube embed wrong: ' + JSON.stringify(emb));
+  await page.fill('#mStart', '42'); await page.dispatchEvent('#mStart', 'change');
+  assert(/start=42/.test(await page.evaluate(() => __deckEditor.S.sel[0].querySelector('iframe').getAttribute('data-src'))), 'start time not set');
+  // clicking the embed selects it (the player doesn't swallow clicks while editing)
+  await page.evaluate(() => __deckEditor.setSel([])); const bb = await (await page.$('#deck .sw-embed')).boundingBox();
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await wait(100);
+  assert(await page.evaluate(() => __deckEditor.S.sel[0] && __deckEditor.S.sel[0].className === 'sw-embed'), 'clicking the embedded video did not select it');
+  const out = await page.evaluate(() => __deckEditor.serialize());
+  assert(/<video[^>]*data-autoplay/.test(out) && out.includes('<track') && out.includes('youtube-nocookie.com/embed/'), 'media not saved');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
