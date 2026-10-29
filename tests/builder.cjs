@@ -3,7 +3,9 @@
 // opens it in Slidewright, edits and saves it, then presents the saved deck and checks that every
 // converter feature still works. A converter change that breaks this is fixed in the same change.
 //   Run with:  (cd board-to-reveal && npm install --omit=optional) && node tests/builder.cjs
-const { chromium } = require('playwright');
+const playwright = require('playwright');
+// BROWSER=webkit runs the same tests in Safari's engine; the default is Chromium (Chrome, Edge).
+const ENGINE = process.env.BROWSER || 'chromium';
 const http = require('http'), fs = require('fs'), os = require('os'), path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -121,11 +123,11 @@ test('Slidewright presents the built deck (presenter preview) without errors', a
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
-  browser = await chromium.launch(); let failed = 0;
+  browser = await playwright[ENGINE].launch(); let failed = 0; console.log('Browser engine: ' + ENGINE);
   for (const t of tests) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); const t0 = Date.now(); let page;
     try { page = await openEditor(ctx); await t.fn(page, ctx); if (page.errors.length) throw new Error('page error: ' + page.errors[0]); console.log(`  ✓ ${t.name} (${Date.now() - t0} ms)`); }
-    catch (e) { failed++; console.log(`  ✗ ${t.name}\n      ${e.message}`); if (page) await page.screenshot({ path: path.join(__dirname, 'failure-builder-' + tests.indexOf(t) + '.png') }).catch(() => {}); }
+    catch (e) { failed++; console.log(`  ✗ ${t.name}\n      ${e.message}`); if (page) await page.screenshot({ path: path.join(__dirname, 'failure-builder-' + ENGINE + '-' + tests.indexOf(t) + '.png') }).catch(() => {}); }
     await ctx.close();
   }
   await browser.close(); server.close();

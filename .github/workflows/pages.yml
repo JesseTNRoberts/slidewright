@@ -17,7 +17,15 @@ concurrency:
 
 jobs:
   test:
+    name: Test (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # chromium = Chrome and Edge; webkit = Safari's engine
+        browser: [chromium, webkit]
+    env:
+      BROWSER: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +34,7 @@ jobs:
       - name: Install Playwright
         run: |
           npm install --no-save --no-package-lock playwright@1.63.0
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run tests
         run: node tests/run.cjs
       - name: Install the converter
@@ -37,7 +45,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-failures
+          name: test-failures-${{ matrix.browser }}
           path: tests/failure-*.png
 
   deploy:
