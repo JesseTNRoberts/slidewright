@@ -367,6 +367,17 @@ test('text shortcuts: Ctrl/Cmd+B, I, U and friends, while typing and on a select
   assert(await page.evaluate(() => __deckEditor.S.editing && __deckEditor.S.editing.id === 'tfmt'), 'shortcut ended editing');
 });
 
+test('an expired GitHub sign-in is forgotten and Save offers to sign in again', async (page, ctx) => {
+  await ctx.route(/^https:\/\/api\.github\.com\//, r => r.fulfill({ status: 401, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"message":"Bad credentials"}' }));
+  await page.evaluate(() => { try { localStorage.setItem('slidewright.ghToken', 'old'); } catch (_) {} __deckEditor.S.ghTokenMem = 'old';
+    __deckEditor.S.gh = { owner: 'JesseTNRoberts', repo: 'New-site-test', branch: 'main', path: 'a.html', sha: 'abc', fromDeck: true }; });
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'Commit to GitHub'));
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Commit').click());
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'Sign in to GitHub again'), null, { timeout: 10000 });
+  assert(await page.evaluate(() => { let v = null; try { v = localStorage.getItem('slidewright.ghToken'); } catch (_) {} return !v && !__deckEditor.S.ghTokenMem; }), 'the rejected token was kept');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
