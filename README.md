@@ -28,7 +28,8 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 **Sharing and history**
 - Export a PDF (one page per slide or per click) and a student handout with speaker notes
 - Presenter view with notes, next slide and a timer, driving an audience window
-- Open from and commit to GitHub with a personal access token; browse a deck's history
+- Work in a local copy of a repo: open from a folder, reopen recent decks, and Save writes straight back (Chrome and Edge)
+- Sign in with GitHub to open, commit and browse the history of decks in your repositories (needs the one-time relay setup in [`auth-relay/`](auth-relay/README.md); a personal access token also works)
 - Compare the deck with its saved version, an older commit or another file, slide by slide
 
 Saving keeps the deck's own scripts and styles untouched, so the file still presents and exports to PDF as before. In Chrome and Edge, Save writes straight back to the file you opened. Other browsers download a copy. GitHub features work from the GitHub Pages site; your token is kept only in your browser.

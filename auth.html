@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Signing in to Slidewright</title>
+<style>
+:root{--bg:#FBFBFA;--ink:#16181D}
+@media (prefers-color-scheme:dark){:root{--bg:#121419;--ink:#E8EAF0}}
+body{margin:0;padding:48px 24px;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center}
+</style>
+</head>
+<body>
+<p id="m">Finishing sign-in…</p>
+<script>
+(function(){
+  var m=document.getElementById('m');
+  var raw=new URLSearchParams(location.hash.slice(1)).get('sw_auth');
+  history.replaceState(null,'',location.pathname);
+  if(!raw){m.textContent='Nothing to do here. You can close this window.';return;}
+  var data; try{data=JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')));}catch(e){m.textContent='Sign-in failed: the response was unreadable.';return;}
+  data.source='slidewright-auth';
+  try{if(window.opener&&!window.opener.closed) window.opener.postMessage(data,location.origin);}catch(e){}
+  try{var bc=new BroadcastChannel('slidewright-auth'); bc.postMessage(data); bc.close();}catch(e){}
+  try{localStorage.setItem('slidewright.authResult',JSON.stringify(data)); setTimeout(function(){localStorage.removeItem('slidewright.authResult');},5000);}catch(e){}
+  m.textContent=data.error?('Sign-in didn’t work: '+data.error):'Signed in. You can close this window.';
+  if(!data.error) setTimeout(function(){window.close();},600);
+})();
+</script>
+</body>
+</html>

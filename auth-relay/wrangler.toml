@@ -1,0 +1,11 @@
+# Optional: deploy from the command line with `npx wrangler deploy` (run in this folder).
+# The dashboard steps in README.md do the same thing without installing anything.
+name = "slidewright-auth"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://jessetnroberts.github.io"
+# GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are set with:
+#   npx wrangler secret put GITHUB_CLIENT_ID
+#   npx wrangler secret put GITHUB_CLIENT_SECRET

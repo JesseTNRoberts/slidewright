@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Slidewright: edit reveal.js HTML slide decks visually. Drag, resize, scale, type, paste images, and check alt text.">
+<!-- Address of the GitHub sign-in relay (see auth-relay/README.md). Leave empty to use personal access tokens. -->
+<meta name="slidewright-auth-relay" content="">
 <link rel="icon" type="image/svg+xml" href="brand/slidewright-mark.svg">
 <link rel="apple-touch-icon" href="brand/slidewright-mark.png">
 <title>Slidewright</title>
@@ -598,7 +600,7 @@ function loadHTML(text,name,handle){
   let secs=$$('.reveal .slides > section',doc);
   if(!secs.length) secs=$$('section',doc).filter(s=>!(s.parentElement&&s.parentElement.closest('section')));
   if(!secs.length){toast('No slides found. The file needs reveal.js <section> slides.','warn');return false;}
-  if(PV.on) stopPreview(); if(S.painter) stopPainter(); endEdit(true); mo.disconnect(); pending=[]; undoStack.length=0; redoStack.length=0; S.gh=null; lastAudit=null;
+  if(PV.on) stopPreview(); if(S.painter) stopPainter(); endEdit(true); mo.disconnect(); pending=[]; undoStack.length=0; redoStack.length=0; S.gh=null; lastAudit=null; S.localPath=null; S.localGit=false;
   S.host=secs[0].parentNode;
   S.doc=doc; S.name=name||'deck.html'; S.handle=handle||null;
   detectSize(doc);
@@ -1353,7 +1355,7 @@ function menu(anchor,items){$$('.menu').forEach(m=>m.remove()); const m=document
   setTimeout(()=>{const off=e=>{if(!m.contains(e.target)){m.remove(); anchor.setAttribute('aria-expanded','false'); document.removeEventListener('pointerdown',off,true);}}; document.addEventListener('pointerdown',off,true);},0);
   m.addEventListener('keydown',e=>{const bs=$$('button',m); const i=bs.indexOf(document.activeElement); if(e.key==='ArrowDown'){e.preventDefault(); bs[(i+1)%bs.length].focus();} if(e.key==='ArrowUp'){e.preventDefault(); bs[(i-1+bs.length)%bs.length].focus();} if(e.key==='Escape'){m.remove(); anchor.focus();}});}
 $('#bShape').onclick=e=>menu(e.currentTarget,[['Rectangle',()=>insertShape('rect')],['Rounded box',()=>insertShape('round')],['Ellipse',()=>insertShape('ellipse')],['Label pill',()=>insertShape('label')],['Line',()=>insertShape('line')],['Arrow',()=>insertShape('arrow')]]);
-$('#bMore').onclick=e=>menu(e.currentTarget,[['New blank deck',newDeck],['Open…',openFile,'Ctrl O'],['Open from GitHub…',openFromGitHub],['Save a copy…',()=>saveLocal(true),'Ctrl ⇧ S'],[S.gh?'Commit to GitHub…':'Save to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],['Keyboard shortcuts',shortcuts,'?']]);
+$('#bMore').onclick=e=>{const anchor=e.currentTarget; menu(anchor,[['New blank deck',newDeck],['Open…',openFile,'Ctrl O'],['Open from folder…',openFolder],['Open recent…',()=>openRecentMenu(anchor)],['Open from GitHub…',openFromGitHub],['Save a copy…',()=>saveLocal(true),'Ctrl ⇧ S'],[S.gh?'Commit to GitHub…':'Save to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
 $('#bText').onclick=()=>insertText();
 $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertImageFile(f);});
 $('#bAlt').onclick=()=>toggleAlt();
@@ -1396,7 +1398,7 @@ document.addEventListener('keydown',e=>{
 const canFS=()=>{try{return 'showOpenFilePicker' in window&&window.top===window;}catch(_){return false;}};
 async function confirmDiscard(){if(!S.dirty) return true; const v=await modal('Open another deck?','Your changes to '+S.name+' haven’t been saved. They stay in this browser’s recovery copy, but the open deck will be replaced.',[['Cancel',null],['Save first','save'],['Open anyway','ok','primary']]); if(v==='save'){await save(false); return true;} return v==='ok';}
 async function openFile(){if(!(await confirmDiscard())) return;
-  if(canFS()){try{const [h]=await window.showOpenFilePicker({types:[{description:'HTML slide deck',accept:{'text/html':['.html','.htm']}}]}); const f=await h.getFile(); openText(await f.text(),f.name,h); return;}catch(e){if(e&&e.name==='AbortError') return;}}
+  if(canFS()){try{const [h]=await window.showOpenFilePicker({types:[{description:'HTML slide deck',accept:{'text/html':['.html','.htm']}}]}); const f=await h.getFile(); openText(await f.text(),f.name,h); addRecent(h,f.name,false); return;}catch(e){if(e&&e.name==='AbortError') return;}}
   $('#fileDeck').value=''; $('#fileDeck').click();}
 $('#fileDeck').onchange=async e=>{const f=e.target.files&&e.target.files[0]; if(f) openText(await f.text(),f.name,null);};
 function openText(text,name,handle){toast('Opening '+name+'…'); setTimeout(()=>{if(loadHTML(text,name,handle)) toast(`Opened ${name}: ${S.slides.length} slide${S.slides.length>1?'s':''}.`);},30);}
@@ -1414,14 +1416,14 @@ downloadsCap();
 async function save(asCopy){ if(S.gh&&!asCopy) return commitToGitHub(); return saveLocal(asCopy); }
 async function saveLocal(asCopy){
   if(!S.doc) return; if(S.editing) endEdit(); commit(); const html=serialize();
-  if(!asCopy&&S.handle&&S.handle.createWritable){try{const w=await S.handle.createWritable(); await w.write(html); await w.close(); markSaved('Saved '+S.name+'.'); return;}catch(e){if(e&&e.name==='AbortError') return;}}
+  if(!asCopy&&S.handle&&S.handle.createWritable){try{const w=await S.handle.createWritable(); await w.write(html); await w.close(); markSaved(S.localGit?`Saved ${S.localPath||S.name}. Commit it with GitHub Desktop or git when you’re ready.`:'Saved '+S.name+'.'); return;}catch(e){if(e&&e.name==='AbortError') return;}}
   if(canFS()&&window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:S.name,types:[{description:'HTML slide deck',accept:{'text/html':['.html']}}]}); const w=await h.createWritable(); await w.write(html); await w.close(); if(!asCopy){S.handle=h; S.name=h.name;} markSaved('Saved '+h.name+'.'); return;}catch(e){if(e&&e.name==='AbortError') return;}}
   const dl=await Promise.race([downloadsCap(),new Promise(r=>setTimeout(()=>r(null),1500))]);
   if(dl){try{await dl.save({filename:S.name.replace(/\.htm$/i,'.html'),data:new Blob([html],{type:'text/html'})}); markSaved('Saved '+S.name+' to your downloads.');}catch(e){toast(e&&e.code==='declined'?'Save cancelled.':'This view can’t save files. Open the editor in its own tab and try again.','warn');} return;}
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download=S.name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},5000); markSaved('Downloaded '+S.name+'.');
 }
 function markSaved(msg){S.dirty=false; updateFileName(); toast(msg); idb('delete','draft');}
-function updateFileName(){const f=$('#fileName'); f.textContent=S.gh?`${S.gh.repo}/${S.gh.path}`:S.name; f.title=(S.gh?`GitHub: ${S.gh.owner}/${S.gh.repo} · ${S.gh.branch} · ${S.gh.path}`:S.name)+(S.dirty?' (unsaved changes)':''); f.classList.toggle('dirty',S.dirty);}
+function updateFileName(){const f=$('#fileName'); f.textContent=S.gh?`${S.gh.repo}/${S.gh.path}`:(S.localPath||S.name); f.title=(S.gh?`GitHub: ${S.gh.owner}/${S.gh.repo} · ${S.gh.branch} · ${S.gh.path}`:S.name)+(S.dirty?' (unsaved changes)':''); f.classList.toggle('dirty',S.dirty);}
 window.addEventListener('beforeunload',e=>{if(S.dirty){e.preventDefault(); e.returnValue='';}});
 /* recovery copy in IndexedDB */
 let dbp=null; function idbOpen(){if(!dbp) dbp=new Promise(ok=>{try{const r=indexedDB.open('deck-editor',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>ok(r.result); r.onerror=()=>ok(null); r.onblocked=()=>ok(null);}catch(_){ok(null);}}); return dbp;}
@@ -2209,7 +2211,7 @@ async function gh(path,opts){
   return opts.raw?r.text():r.json();
 }
 function utf8b64(str){const b=new TextEncoder().encode(str); let s=''; for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s);}
-async function ensureToken(){
+async function tokenPrompt(){
   if(ghTok()) return true;
   const inp=el('input',{type:'password',autocomplete:'off',placeholder:'github_pat_…'}); const keep=el('input',{type:'checkbox',checked:''});
   const w=el('div',{class:'stack'},el('p',{style:'margin:0'},'Slidewright talks to GitHub with a personal access token. Create a fine-grained token at ',el('a',{href:'https://github.com/settings/personal-access-tokens/new',target:'_blank',rel:'noopener',text:'github.com/settings/personal-access-tokens/new'}),' with access to the repositories that hold your decks and the permission “Contents: Read and write”.'),
@@ -2233,7 +2235,7 @@ async function ghPicker(mode){
   const msg=el('textarea',{rows:'2'}); msg.value=`Update ${S.name} with Slidewright`;
   const body=el('div',{class:'stack'},el('div',{class:'grid2'},el('label',{class:'fld'},'Repository',repoSel),el('label',{class:'fld'},'Branch',branchSel)),
     mode==='open'?el('div',{class:'stack'},filter,files):el('div',{class:'stack'},el('label',{class:'fld'},'Save as (path in the repository)',pathInp),el('div',{class:'hint',text:'Existing decks (click to overwrite):'}),files,el('label',{class:'fld'},'Commit message',msg)),
-    el('p',{class:'hint'},'Signed in'+(S.ghUser?' as '+S.ghUser:'')+'. ',el('button',{class:'linkbtn',type:'button',text:'Forget token',onclick:()=>{forgetToken(); resolve(null); toast('Removed the GitHub token from this browser.');}})));
+    el('p',{class:'hint'},'Signed in'+(S.ghUser?' as '+S.ghUser:'')+'. ',el('button',{class:'linkbtn',type:'button',text:'Sign out',onclick:()=>{resolve(null); signOutGitHub();}})));
   const bg=el('div',{class:'modal-bg'}); const m=el('div',{class:'modal wide',role:'dialog','aria-modal':'true'},el('h2',{text:mode==='open'?'Open from GitHub':'Save to GitHub'}),body,
     el('div',{class:'actions'},el('button',{class:'btn',text:'Cancel',onclick:()=>resolve(null)}),mode==='open'?null:el('button',{class:'btn primary',text:'Commit',onclick:()=>resolve({repo:repoSel.value,branch:branchSel.value,path:pathInp.value.trim().replace(/^\/+/,''),message:msg.value.trim()})})));
   bg.appendChild(m); document.body.appendChild(bg); const kd=e=>{if(e.key==='Escape'){e.stopPropagation(); resolve(null);}}; document.addEventListener('keydown',kd,true);
@@ -2320,6 +2322,75 @@ async function compareWithSaved(){ endEdit(); commit();
   if(S.handle&&S.handle.getFile){try{const f=await S.handle.getFile(); compareDecks(await f.text(),'the saved file');}catch(e){toast('Couldn’t read the saved file.','warn');} return;}
   if(S.gh){try{const sha=await ghFileSha(S.gh.owner+'/'+S.gh.repo,S.gh.path,S.gh.branch); compareDecks(await ghBlobText(S.gh.owner+'/'+S.gh.repo,sha),'the latest version on GitHub');}catch(e){toast(e.message,'warn');} return;}
   compareWithFile(); }
+
+/* ======================= GitHub sign-in (OAuth via relay) ======================= */
+const AUTH_RELAY=((document.querySelector('meta[name="slidewright-auth-relay"]')||{}).content||'').trim().replace(/\/+$/,'');
+const canSignIn=()=>!!AUTH_RELAY&&(location.protocol==='https:'||/^(localhost|127\.0\.0\.1)$/.test(location.hostname));
+function randNonce(){const a=new Uint8Array(24); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function signInWithGitHub(){ return new Promise(resolve=>{
+  const nonce=randNonce(); const ret=new URL('auth.html',location.href).href;
+  let w=null; try{w=window.open(`${AUTH_RELAY}/login?return=${encodeURIComponent(ret)}&nonce=${nonce}`,'slidewright-signin','popup,width=720,height=780');}catch(_){}
+  if(!w){toast('The sign-in window was blocked. Allow pop-ups for this site, then try again.','warn'); resolve(false); return;}
+  let done=false, bc=null; const card=progressCard('Signing in to GitHub'); card.set(0.5,'Approve Slidewright in the window that opened.');
+  const cleanup=()=>{clearInterval(iv); clearTimeout(to); card.close(); try{bc&&bc.close();}catch(_){} window.removeEventListener('message',onMsg); window.removeEventListener('storage',onSt);};
+  const finish=d=>{ if(done||!d||d.nonce!==nonce) return; done=true; cleanup();
+    if(d.error||!d.token){toast('GitHub sign-in didn’t work: '+(d.error||'no token'),'warn'); resolve(false); return;}
+    S.ghTokenMem=d.token; try{localStorage.setItem('slidewright.ghToken',d.token);}catch(_){}
+    gh('/user').then(me=>{S.ghUser=me.login; toast('Signed in to GitHub as '+me.login+'.'); resolve(true);}).catch(e=>{forgetToken(); toast(e.message,'warn'); resolve(false);}); };
+  try{bc=new BroadcastChannel('slidewright-auth'); bc.onmessage=e=>finish(e.data);}catch(_){}
+  const onMsg=e=>{if(e.origin===location.origin&&e.data&&e.data.source==='slidewright-auth') finish(e.data);};
+  const onSt=e=>{if(e.key==='slidewright.authResult'&&e.newValue){try{finish(JSON.parse(e.newValue));}catch(_){}}};
+  window.addEventListener('message',onMsg); window.addEventListener('storage',onSt);
+  const iv=setInterval(()=>{ if(card.cancelled&&!done){done=true; cleanup(); resolve(false);} },250);
+  const to=setTimeout(()=>{ if(!done){done=true; cleanup(); toast('GitHub sign-in timed out. Try again.','warn'); resolve(false);} },5*60000);
+});}
+async function signOutGitHub(){forgetToken(); S.ghUser=null; toast('Signed out of GitHub in this browser. To remove Slidewright’s access completely, revoke it at github.com/settings/applications.');}
+
+/* ======================= local folders & recent files ======================= */
+const canDir=()=>{try{return 'showDirectoryPicker' in window&&window.top===window;}catch(_){return false;}};
+async function addRecent(handle,path,dirHasGit){ if(!handle) return; try{ let list=(await idb('get','recents'))||[]; const keep=[];
+    for(const r of list){ try{ if(r.handle&&await r.handle.isSameEntry(handle)) continue; }catch(_){} keep.push(r); }
+    keep.unshift({name:handle.name,path:path||handle.name,handle,git:!!dirHasGit,time:Date.now()}); await idb('put','recents',keep.slice(0,10)); }catch(_){} }
+async function openHandle(h,path,git){
+  try{ if(h.queryPermission&&(await h.queryPermission({mode:'readwrite'}))!=='granted'){ const p=await h.requestPermission({mode:'readwrite'}); if(p!=='granted'&&(await h.queryPermission({mode:'read'}))!=='granted'){toast('Slidewright needs permission to open that file.','warn'); return;} } }catch(_){}
+  let f; try{f=await h.getFile();}catch(e){toast('That file couldn’t be opened. It may have been moved or deleted.','warn'); return;}
+  const text=await f.text(); toast('Opening '+f.name+'…');
+  setTimeout(()=>{ if(loadHTML(text,f.name,h)){ S.localPath=path||f.name; S.localGit=!!git; updateFileName(); addRecent(h,path,git); toast(`Opened ${path||f.name}: ${S.slides.length} slides.`);} },30);
+}
+async function walkDecks(dir,prefix,depth,out){ if(depth>5||out.length>500) return; for await (const [name,h] of dir.entries()){ if(name.startsWith('.')||name==='node_modules') continue;
+    if(h.kind==='directory') await walkDecks(h,prefix+name+'/',depth+1,out); else if(/\.html?$/i.test(name)) out.push({path:prefix+name,handle:h}); } }
+async function openFolder(){
+  if(!canDir()){toast('Opening a folder needs Chrome or Edge, using Slidewright from its own tab.','warn'); return;}
+  if(!(await confirmDiscard())) return;
+  let dir; try{dir=await window.showDirectoryPicker({id:'slidewright-decks',mode:'readwrite'});}catch(e){return;}
+  let git=false; try{await dir.getDirectoryHandle('.git'); git=true;}catch(_){}
+  const prog=progressCard('Looking for decks'); const decks=[]; try{await walkDecks(dir,'',0,decks);}finally{prog.close();}
+  if(!decks.length){toast('No .html files in that folder.','warn'); return;}
+  decks.sort((a,b)=>a.path.localeCompare(b.path));
+  const filter=el('input',{type:'text',placeholder:'Filter'}); const list=el('div',{class:'gh-files'}); let resolve; const done=new Promise(r=>resolve=r);
+  const draw=()=>{list.replaceChildren(); const q=filter.value.toLowerCase(); decks.filter(d=>d.path.toLowerCase().includes(q)).slice(0,400).forEach(d=>list.appendChild(el('button',{class:'gh-file',type:'button',onclick:()=>resolve(d)},el('span',{text:d.path}))));};
+  filter.oninput=draw; draw();
+  const bg=el('div',{class:'modal-bg'}); const m=el('div',{class:'modal wide',role:'dialog','aria-modal':'true'},el('h2',{text:`Decks in ${dir.name}`}),
+    el('p',{class:'hint',text:git?'This folder is a git repository. Save writes the file here; commit it with GitHub Desktop or git as usual.':'Save writes straight back to the file you pick.'}),filter,list,el('div',{class:'actions'},el('button',{class:'btn',text:'Cancel',onclick:()=>resolve(null)})));
+  bg.appendChild(m); document.body.appendChild(bg); const kd=e=>{if(e.key==='Escape'){e.stopPropagation(); resolve(null);}}; document.addEventListener('keydown',kd,true); filter.focus();
+  const pick=await done; bg.remove(); document.removeEventListener('keydown',kd,true); if(!pick) return;
+  openHandle(pick.handle,dir.name+'/'+pick.path,git);
+}
+async function recentItems(){ const list=(await idb('get','recents'))||[]; return list.filter(r=>r.handle).slice(0,8); }
+async function openRecentMenu(anchor){
+  if(!canFS()){toast('Recent files need Chrome or Edge, using Slidewright from its own tab.','warn'); return;}
+  const list=await recentItems(); if(!list.length){toast('No recent decks yet. Open one from a file or folder first.'); return;}
+  menu(anchor,list.map(r=>[r.path.length>48?'…'+r.path.slice(-47):r.path,async()=>{ if(!(await confirmDiscard())) return; openHandle(r.handle,r.path,r.git); }]).concat([['Clear this list',async()=>{await idb('delete','recents'); toast('Cleared recent decks.');}]]));
+}
+
+async function ensureToken(){
+  if(ghTok()) return true;
+  if(canSignIn()){
+    const body=el('div',{class:'stack'},el('p',{style:'margin:0',text:'Slidewright opens GitHub in a small window. Approve it once and this browser stays signed in until you sign out.'}),el('p',{class:'hint',text:'It can then open, commit to and show the history of decks in your repositories.'}));
+    const v=await modal('Connect to GitHub',body,[['Cancel',null],['Use a token instead','token'],['Sign in with GitHub','signin','primary']]);
+    if(v==='signin') return signInWithGitHub(); if(v!=='token') return false; }
+  return tokenPrompt();
+}
 
 /* ======================= boot ======================= */
 S.sample=true; loadHTML(sampleDeck(),'sample-deck.html',null); S.sample=false;
