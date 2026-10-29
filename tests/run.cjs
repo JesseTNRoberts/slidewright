@@ -284,6 +284,38 @@ test('Open and Save offer where to go; Save goes straight back once connected', 
   assert(!(await page.$('.menu')), 'Save showed a menu for a deck connected to GitHub');
 });
 
+test('presenter view: audience on the external display, presenter on the built-in one; swap and duplicate', async (page, ctx) => {
+  await page.evaluate(() => {
+    const mk = (label, left, internal) => ({ label, availLeft: left, availTop: 0, availWidth: 1920, availHeight: 1080, width: 1920, height: 1080, isInternal: internal, isPrimary: internal });
+    const inner = mk('Built-in Retina Display', 0, true), outer = mk('Projector', 1920, false);
+    window.getScreenDetails = async () => ({ screens: [inner, outer], currentScreen: inner, addEventListener() {}, removeEventListener() {} });
+    const q = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = d => /window-(management|placement)/.test(d.name) ? Promise.resolve({ state: 'granted' }) : q(d);
+    window.__opens = []; const o = window.open; window.open = (u, n, f) => { window.__opens.push(f); return o.call(window, u, n, 'popup,width=1280,height=760'); };
+    window.__fs = []; Element.prototype.requestFullscreen = function (opt) { window.__fs.push(opt && opt.screen && opt.screen.label); return Promise.resolve(); };
+  });
+  let pop = ctx.waitForEvent('page');
+  await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Presenter view/.test(b.textContent)).click());
+  let aw = await pop; await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(500);
+  let st = await page.evaluate(() => ({ opens: window.__opens, fs: window.__fs }));
+  assert(/left=1920/.test(st.opens[0]) && /fullscreen/.test(st.opens[0]), 'audience not placed on the projector: ' + st.opens[0]);
+  assert(st.fs[0] === 'Built-in Retina Display', 'presenter view not full screen on the built-in display: ' + st.fs);
+  await aw.evaluate(() => { Reveal.slide(1); SW_ink.setTool('pen'); SW_ink.begin(100, 100); SW_ink.move(200, 150); SW_ink.end(); SW_ink.setTool('pen'); }); await wait(300);
+  const display = () => page.evaluate(() => [...document.querySelectorAll('#presenter .btn')].find(b => /Display/.test(b.textContent)).click());
+  const pick = re => page.evaluate(src => [...document.querySelectorAll('.menu button')].find(b => new RegExp(src).test(b.textContent)).click(), re);
+  await display(); pop = ctx.waitForEvent('page'); await pick('^Swap displays');
+  aw = await pop; await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady() && Reveal.getIndices().h === 1, null, { timeout: 20000 }); await wait(500);
+  st = await page.evaluate(() => ({ opens: window.__opens, fs: window.__fs }));
+  assert(/left=0,/.test(st.opens[1]), 'swap did not move the audience to the built-in display: ' + st.opens[1]);
+  assert(st.fs[st.fs.length - 1] === 'Projector', 'swap did not move presenter view to the projector: ' + st.fs);
+  assert(await aw.evaluate(() => document.querySelectorAll('.sw-ink path').length) === 1, 'drawing lost when swapping');
+  assert(await page.evaluate(() => !!document.querySelector('#presenter')), 'presenter view closed during the swap');
+  await display(); await pick('^Duplicate');
+  assert(await page.evaluate(() => document.querySelector('#presenter').classList.contains('pv-dup')), 'duplicate mode not on');
+  await display(); await pick('^Extend');
+  assert(await page.evaluate(() => !document.querySelector('#presenter').classList.contains('pv-dup')), 'extend did not turn duplicate off');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
