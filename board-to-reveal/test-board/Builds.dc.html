@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Build steps, a marker and an equation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Build steps, a marker and an equation</div>
+<div style="position: absolute; left: 64px; top: 140px; font-size: 24px">Logits \( \hat{Y} = XW^T \) and \[ \hat{p}_i = \frac{e^{\hat{y}_i}}{\sum_k e^{\hat{y}_k}} \]</div>
+<div data-build-step="1" style="position: absolute; left: 64px; top: 320px; font-size: 22px">Appears on click 1</div>
+<div data-build-step="2" style="position: absolute; left: 64px; top: 380px; font-size: 22px">Appears on click 2</div>
+<svg width="400" height="200" viewBox="0 0 400 200" role="img" aria-label="A curve with a marker that moves along it, one point per click." style="position: absolute; left: 760px; top: 300px"><path d="M10 190 Q200 0 390 190" stroke="#8E94A0" fill="none"/><circle data-build-dot="m" data-track="60,120;200,60" cx="60" cy="120" r="7" fill="#C2510F"/></svg>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

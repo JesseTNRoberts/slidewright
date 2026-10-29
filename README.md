@@ -42,6 +42,10 @@ Saving keeps the deck's own scripts and styles untouched, so the file still pres
 - `brand/` holds the logo as SVG and PNG, in light and dark versions.
 - `.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`.
 
+## Making decks: board-to-reveal
+
+[`board-to-reveal/`](board-to-reveal/README.md) is the converter that turns a lecture art board into the reveal.js decks Slidewright edits. The two live together so they stay in step: every push builds a test board with the converter and checks that Slidewright opens it, saves it, and that the saved deck still presents (`tests/builder.cjs`).
+
 ## Offline copy
 
 [slidewright-offline.html](https://www.jessetnroberts.com/slidewright/slidewright-offline.html) is the whole app in one file with its libraries built in. Save it anywhere and open it in a browser; equations and PDF export work with no network.
@@ -51,7 +55,7 @@ Saving keeps the deck's own scripts and styles untouched, so the file still pres
 - `index.html` is the source. There's no build step for the site.
 - `vendor/` holds the bundled libraries (KaTeX, jsPDF, reveal.js); see [vendor/README.md](vendor/README.md).
 - [docs/DECK-FORMAT.md](docs/DECK-FORMAT.md) lists the deck structure Slidewright relies on.
-- Tests: `npm install --no-save playwright && npx playwright install chromium && node tests/run.cjs`. They open `tests/sample-deck.html` in headless Chromium, exercise the main features, and fail if any library is fetched from a CDN.
+- Tests: `npm install --no-save playwright && npx playwright install chromium && node tests/run.cjs`. The converter test also needs `(cd board-to-reveal && npm install --omit=optional)`, then `node tests/builder.cjs`. They open `tests/sample-deck.html` in headless Chromium, exercise the main features, and fail if any library is fetched from a CDN.
 - Every push runs the tests on GitHub first; the site only deploys if they pass. Screenshots of any failure are attached to the run.
 
 ## License

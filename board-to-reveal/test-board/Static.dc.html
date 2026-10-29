@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Static slide with a list</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Static slide with a list</div>
+<div style="position: absolute; left: 64px; top: 140px; width: 700px; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{items}}" as="it" hint-placeholder-count="3"><div style="font-size: 20px; line-height: 28px">{{it.n}}. {{it.text}}</div></sc-for>
+</div>
+<svg width="300" height="160" viewBox="0 0 300 160" role="img" aria-label="A rising line from 0 to 1." style="position: absolute; left: 860px; top: 160px"><path d="M10 150 L290 10" stroke="#2557D6" stroke-width="3" fill="none"/><text x="10" y="20" font-size="12">y</text></svg>
+<div style="position: absolute; left: 64px; top: 620px; width: 1152px; height: 1px; background: #DADDE2"></div>
+<div style="position: absolute; left: 64px; top: 636px; width: 1152px; font-size: 22px; line-height: 30px">A takeaway with <b>one bolded phrase</b>.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+renderVals() { return { items: ['First', 'Second', 'Third'].map(function (t, i) { return { n: i + 1, text: t }; }) }; }
+}
+</script>
+</body>
+</html>
