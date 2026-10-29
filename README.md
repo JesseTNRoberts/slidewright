@@ -42,6 +42,18 @@ Saving keeps the deck's own scripts and styles untouched, so the file still pres
 - `brand/` holds the logo as SVG and PNG, in light and dark versions.
 - `.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`.
 
+## Offline copy
+
+[slidewright-offline.html](https://www.jessetnroberts.com/slidewright/slidewright-offline.html) is the whole app in one file with its libraries built in. Save it anywhere and open it in a browser; equations and PDF export work with no network.
+
+## Development
+
+- `index.html` is the source. There's no build step for the site.
+- `vendor/` holds the bundled libraries (KaTeX, jsPDF, reveal.js); see [vendor/README.md](vendor/README.md).
+- [docs/DECK-FORMAT.md](docs/DECK-FORMAT.md) lists the deck structure Slidewright relies on.
+- Tests: `npm install --no-save playwright && npx playwright install chromium && node tests/run.cjs`. They open `tests/sample-deck.html` in headless Chromium, exercise the main features, and fail if any library is fetched from a CDN.
+- Every push runs the tests on GitHub first; the site only deploys if they pass. Screenshots of any failure are attached to the run.
+
 ## License
 
 The code is under the [MIT License](LICENSE): use it, change it, and share it, keeping the copyright notice.

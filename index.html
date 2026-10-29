@@ -1417,11 +1417,13 @@ async function openFile(){if(!(await confirmDiscard())) return;
   $('#fileDeck').value=''; $('#fileDeck').click();}
 $('#fileDeck').onchange=async e=>{const f=e.target.files&&e.target.files[0]; if(f) openText(await f.text(),f.name,null);};
 function openText(text,name,handle){toast('Opening '+name+'…'); setTimeout(()=>{if(loadHTML(text,name,handle)) toast(`Opened ${name}: ${S.slides.length} slide${S.slides.length>1?'s':''}.`);},30);}
+function savedClone(s,doc){ doc=doc||document; const c=doc.importNode(s,true);
+  c.querySelectorAll('.sw-math[data-sw-delim]').forEach(m=>{const d=m.getAttribute('data-sw-delim')==='display'; m.replaceWith(doc.createTextNode((d?'\\[':'\\(')+m.getAttribute('data-latex')+(d?'\\]':'\\)')));});
+  c.querySelectorAll('[contenteditable],.de-shown,.de-cur').forEach(m=>{if(m.classList.contains('sw-math')||m.getAttribute('contenteditable')) m.removeAttribute('contenteditable'); m.classList.remove('de-shown','de-cur'); if(!m.getAttribute('class')) m.removeAttribute('class');});
+  return c; }
 function serialize(){
   const doc=S.doc, host=S.host; const editing=S.editing; if(editing) editing.removeAttribute('contenteditable');
-  host.replaceChildren(); S.slides.forEach(s=>{host.appendChild(doc.createTextNode('\n')); const c=doc.importNode(s,true);
-    c.querySelectorAll('.sw-math[data-sw-delim]').forEach(m=>{const d=m.getAttribute('data-sw-delim')==='display'; m.replaceWith(doc.createTextNode((d?'\\[':'\\(')+m.getAttribute('data-latex')+(d?'\\]':'\\)')));});
-    c.querySelectorAll('.sw-math[contenteditable],.de-shown,.de-cur').forEach(m=>{m.removeAttribute('contenteditable'); m.classList.remove('de-shown','de-cur');}); host.appendChild(c);}); host.appendChild(doc.createTextNode('\n'));
+  host.replaceChildren(); S.slides.forEach(s=>{host.appendChild(doc.createTextNode('\n')); host.appendChild(savedClone(s,doc));}); host.appendChild(doc.createTextNode('\n'));
   if(editing) editing.setAttribute('contenteditable','true');
   const dt=doc.doctype?'<!DOCTYPE '+doc.doctype.name+'>':'<!doctype html>';
   const html=dt+'\n'+doc.documentElement.outerHTML; host.replaceChildren(); return html;
@@ -1474,13 +1476,15 @@ function present(){
 }
 
 /* ======================= new / sample decks ======================= */
-function deckShell(title,sections){return `<!doctype html>
+const REVEAL_V='vendor/reveal.js-5.1.0/';
+async function revealAssets(){ try{ const [css,js]=await Promise.all(['reveal.css','reveal.js'].map(f=>fetch(REVEAL_V+f).then(r=>{if(!r.ok) throw new Error(r.status); return r.text();}))); if(!/Reveal/.test(js)) return null; return {css,js}; }catch(_){ return null; } }
+function deckShell(title,sections,assets){return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+${assets?'<style>\n'+assets.css+'\n</style>':'<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">'}
 <style>
 html,body{background:#FBFBFA}
 .reveal{font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;color:#16181D}
@@ -1493,7 +1497,7 @@ html,body{background:#FBFBFA}
 <div class="reveal"><div class="slides">
 ${sections}
 </div></div>
-<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"><\/script>
+${assets?'<script>\n'+assets.js.replace(/<\/script/gi,'<\\/script')+'\n<\/script>':'<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"><\/script>'}
 <script>Reveal.initialize({width:1280,height:720,margin:0.03,center:false,hash:true,controls:true,progress:true,transition:'fade'});<\/script>
 </body>
 </html>`;}
@@ -1544,10 +1548,10 @@ function sampleDeck(){
 }
 async function newDeck(){if(!(await confirmDiscard())) return; const s=`<section data-title="Title slide">
 <div style="${ROOT}">
-<div style="position: absolute; left: 64px; top: 220px; width: 1152px; font-size: 64px; line-height: 72px; font-weight: 600; letter-spacing: -0.01em">Deck title</div>
+<h1 style="position: absolute; left: 64px; top: 220px; width: 1152px; margin: 0; font-size: 64px; line-height: 72px; font-weight: 600; letter-spacing: -0.01em">Deck title</h1>
 <div style="position: absolute; left: 64px; top: 308px; width: 1152px; font-size: 26px; line-height: 36px; color: #4E5360">Subtitle</div>
 </div>
-</section>`; loadHTML(deckShell('Untitled deck',s),'untitled-deck.html',null); S.dirty=true; updateFileName();}
+</section>`; const a=await revealAssets(); loadHTML(deckShell('Untitled deck',s,a),'untitled-deck.html',null); S.dirty=true; updateFileName(); if(!a) toast('New deck uses reveal.js from jsDelivr because the bundled copy wasn’t reachable here.');}
 
 /* ======================= shared helpers for new features ======================= */
 function contentRoot(b){const k=kidsOf(b).filter(c=>c.tagName==='DIV'&&!c.classList.contains('slide-copy')&&!c.classList.contains('pdf-get')&&!c.classList.contains('step-layer')); return k.length===1?k[0]:b;}
@@ -1589,7 +1593,9 @@ function progressCard(title){
   st.close=()=>el.remove(); return st;
 }
 const tick=()=>new Promise(r=>setTimeout(r,0));
-function loadScript(src,check){ if(check()) return Promise.resolve(check()); return new Promise((ok,bad)=>{const s=document.createElement('script'); s.src=src; s.onload=()=>check()?ok(check()):bad(new Error('Loaded but not available')); s.onerror=()=>{s.remove(); bad(new Error('Could not load '+src));}; document.head.appendChild(s);}); }
+function loadScript(src,check){ if(check()) return Promise.resolve(check()); const srcs=Array.isArray(src)?src:[src];
+  const one=u=>new Promise((ok,bad)=>{const sc=document.createElement('script'); sc.src=u; sc.onload=()=>check()?ok(check()):bad(new Error('Loaded but not available')); sc.onerror=()=>{sc.remove(); bad(new Error('Could not load '+u));}; document.head.appendChild(sc);});
+  return srcs.reduce((pr,u)=>pr.catch(()=>check()?check():one(u)),Promise.reject()).catch(()=>{throw new Error('Could not load '+srcs[srcs.length-1]);}); }
 async function saveFile(name,blob,desc,ext,mime){
   if(canFS()&&window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:name,types:[{description:desc,accept:{[mime]:[ext]}}]}); const w=await h.createWritable(); await w.write(blob); await w.close(); toast('Saved '+h.name+'.'); return true;}catch(e){if(e&&e.name==='AbortError') return false;}}
   const dl=await Promise.race([downloadsCap(),new Promise(r=>setTimeout(()=>r(null),1500))]);
@@ -1903,7 +1909,7 @@ $('#bCheck').onclick=()=>runAudit();
 
 
 /* ======================= 5. equations ======================= */
-const KATEX_SRC='https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js';
+const KATEX_SRC=['vendor/katex-0.16.9/katex.min.js','https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js'];
 const loadKatex=()=>loadScript(KATEX_SRC,()=>window.katex);
 function mathHTML(latex,display){try{return window.katex.renderToString(latex,{output:'mathml',displayMode:!!display,throwOnError:false,strict:false});}catch(e){return '';}}
 function makeMath(latex,display,delim){const s=document.createElement('span'); s.className='sw-math'; s.setAttribute('data-latex',latex); if(display) s.setAttribute('data-display','true'); if(delim) s.setAttribute('data-sw-delim',display?'display':'inline'); s.innerHTML=mathHTML(latex,display); return s;}
@@ -2176,7 +2182,7 @@ async function slideCanvas(sec,k,scale){
   const cv=document.createElement('canvas'); cv.width=Math.round(S.W*scale); cv.height=Math.round(S.H*scale); const g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.drawImage(img,0,0,cv.width,cv.height);
   return cv;
 }
-const loadJsPDF=()=>loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',()=>window.jspdf&&window.jspdf.jsPDF);
+const loadJsPDF=()=>loadScript(['vendor/jspdf-2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'],()=>window.jspdf&&window.jspdf.jsPDF);
 async function exportPDF(){
   endEdit(); commit(); const r1b=el('input',{type:'radio',name:'pdfmode',value:'last',checked:''}), r2b=el('input',{type:'radio',name:'pdfmode',value:'each'});
   const w=el('div',{class:'stack'},el('label',{class:'chk'},r1b,el('span',{text:'One page per slide, each at its last click'})),el('label',{class:'chk'},r2b,el('span',{text:'One page per click, so every build step is shown'})));
@@ -2385,7 +2391,7 @@ function compareDecks(otherHTML,label){
   os=os.map(s=>document.importNode(s,true)); const ns=S.slides;
   const key=s=>(s.getAttribute('data-title')||normText(s.textContent).slice(0,60));
   const pairs=lcsPairs(os,ns,(a,b)=>key(a)===key(b)); const mo2=new Map(pairs.map(([i,j])=>[j,i])); const matchedOld=new Set(pairs.map(p=>p[0]));
-  const strip=s=>{const c=s.cloneNode(true); c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable')); return c.outerHTML.replace(/\s+/g,' ');};
+  const asSaved=s=>ns.includes(s)?savedClone(s):s; const strip=s=>asSaved(s).outerHTML.replace(/\s+/g,' ');
   const rows=[]; let ch=0,ad=0,rm=0,same=0; let oi=0;
   ns.forEach((s,j)=>{ if(mo2.has(j)){const i=mo2.get(j); for(;oi<i;oi++) if(!matchedOld.has(oi)){rows.push({kind:'removed',old:os[oi],oi,after:j-1}); rm++;} oi=i+1;
       if(strip(os[i])===strip(s)){rows.push({kind:'same',old:os[i],cur:s,j}); same++;} else {rows.push({kind:'changed',old:os[i],cur:s,j}); ch++;}}
@@ -2400,7 +2406,7 @@ function compareDecks(otherHTML,label){
     const body=el('div',{class:'cmp-b'});
     if(r.old&&r.kind!=='same') body.appendChild(el('div',{class:'cmp-t'},el('span',{class:'hint',text:'Before'}),el('span',{class:'tf'},makeThumbHost(r.old,{width:260}))));
     if(r.cur) body.appendChild(el('div',{class:'cmp-t'},el('span',{class:'hint',text:r.kind==='same'?'':'Now'}),el('span',{class:'tf'},makeThumbHost(r.cur,{width:260}))));
-    if(r.kind==='changed'){const a=normText(r.old.textContent), b=normText(r.cur.textContent); if(a!==b){const d=wordDiff(a,b); body.appendChild(d||el('p',{class:'hint',text:'The words changed a lot.'}));} else body.appendChild(el('p',{class:'hint',text:'Same words; the layout, styling or pictures changed.'}));}
+    if(r.kind==='changed'){const a=normText(r.old.textContent), b=normText(savedClone(r.cur).textContent); if(a!==b){const d=wordDiff(a,b); body.appendChild(d||el('p',{class:'hint',text:'The words changed a lot.'}));} else body.appendChild(el('p',{class:'hint',text:'Same words; the layout, styling or pictures changed.'}));}
     list.appendChild(el('div',{class:'cmp-row '+r.kind},head,body)); }); };
   showSame.onchange=draw;
   const m=el('div',{class:'modal wide xl',role:'dialog','aria-modal':'true'},el('h2',{text:'Compare with '+label}),
