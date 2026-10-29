@@ -12,12 +12,20 @@
  *                         e.g. https://www.jessetnroberts.com,https://jessetnroberts.com  (text)
  *   SCOPE                 optional; "repo" (default) or "public_repo"
  */
-const b64url = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const unb64url = s => atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+// UTF-8 safe: btoa() alone throws on characters such as ’, which crashed the relay (Cloudflare error 1101).
+const b64url = s => { let b = ''; new TextEncoder().encode(s).forEach(c => { b += String.fromCharCode(c); }); return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64url = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/')); return new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0))); };
 const text = (msg, status = 200) => new Response(msg, { status, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
 
 export default {
   async fetch(req, env) {
+    try { return await handle(req, env); }
+    catch (e) { return text('The Slidewright sign-in relay hit an error: ' + (e && e.message || e), 500); }
+  }
+};
+
+async function handle(req, env) {
+  {
     const url = new URL(req.url);
     const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
     const okReturn = r => { try { const u = new URL(r); const local = u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname);
@@ -44,16 +52,17 @@ export default {
       const back = data => { ret.hash = 'sw_auth=' + b64url(JSON.stringify(Object.assign({ nonce: st.n }, data))); return new Response(null, { status: 302, headers: { location: ret.href, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } }); };
       if (url.searchParams.get('error')) return back({ error: url.searchParams.get('error_description') || url.searchParams.get('error') });
       const code = url.searchParams.get('code'); if (!code) return back({ error: 'GitHub didn’t return a sign-in code.' });
-      const r = await fetch('https://github.com/login/oauth/access_token', {
+      if (!env.GITHUB_CLIENT_SECRET) return back({ error: 'The relay is missing GITHUB_CLIENT_SECRET.' });
+      let r; try { r = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: { 'accept': 'application/json', 'content-type': 'application/json', 'user-agent': 'slidewright-auth-relay' },
         body: JSON.stringify({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: url.origin + '/callback' })
-      });
+      }); } catch (e) { return back({ error: 'The relay could not reach GitHub (' + (e && e.message || e) + ').' }); }
       let j = {}; try { j = await r.json(); } catch {}
-      if (!j.access_token) return back({ error: j.error_description || j.error || 'GitHub didn’t issue a token.' });
+      if (!j.access_token) return back({ error: (j.error_description || j.error || 'GitHub did not issue a token') + ' (GitHub answered ' + r.status + (j.error ? ', ' + j.error : '') + ').' });
       return back({ token: j.access_token, scope: j.scope || '' });
     }
 
     return text('Slidewright sign-in relay. Nothing to see here.');
   }
-};
+}

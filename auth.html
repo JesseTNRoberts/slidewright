@@ -19,7 +19,7 @@ body{margin:0;padding:48px 24px;background:var(--bg);color:var(--ink);font:15px/
   var raw=new URLSearchParams(location.hash.slice(1)).get('sw_auth');
   history.replaceState(null,'',location.pathname);
   if(!raw){m.textContent='Nothing to do here. You can close this window.';return;}
-  var data; try{data=JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')));}catch(e){m.textContent='Sign-in failed: the response was unreadable.';return;}
+  var data; try{var bin=atob(raw.replace(/-/g,'+').replace(/_/g,'/')); data=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,function(c){return c.charCodeAt(0);})));}catch(e){m.textContent='Sign-in failed: the response was unreadable.';return;}
   data.source='slidewright-auth';
   try{if(window.opener&&!window.opener.closed) window.opener.postMessage(data,location.origin);}catch(e){}
   try{var bc=new BroadcastChannel('slidewright-auth'); bc.postMessage(data); bc.close();}catch(e){}
