@@ -24,3 +24,11 @@ Saving keeps the deck's own scripts and styles untouched, so the file still pres
 - `index.html` is the whole app, with no build step and no dependencies.
 - `brand/` holds the logo as SVG and PNG, in light and dark versions.
 - `.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`.
+
+## License
+
+The code is under the [MIT License](LICENSE): use it, change it, and share it, keeping the copyright notice.
+
+## Name and logo
+
+The Slidewright name and the wheel logo belong to Jesse Roberts and aren't covered by the MIT License. You're welcome to use them to refer to Slidewright, for example to link to it, write about it, or say your deck was made with it. If you publish your own modified version, please give it a different name and logo so people can tell it apart from the official Slidewright.
