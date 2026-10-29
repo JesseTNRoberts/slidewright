@@ -127,7 +127,7 @@ test('Slidewright presents the built deck (presenter preview) without errors', a
   for (const t of tests) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); const t0 = Date.now(); let page;
     try { page = await openEditor(ctx); await t.fn(page, ctx); if (page.errors.length) throw new Error('page error: ' + page.errors[0]); console.log(`  ✓ ${t.name} (${Date.now() - t0} ms)`); }
-    catch (e) { failed++; console.log(`  ✗ ${t.name}\n      ${e.message}`); if (page) await page.screenshot({ path: path.join(__dirname, 'failure-builder-' + ENGINE + '-' + tests.indexOf(t) + '.png') }).catch(() => {}); }
+    catch (e) { failed++; console.log(`  ✗ ${t.name}\n      ${e.message}`); if (process.env.GITHUB_ACTIONS) console.log(`::error title=${ENGINE}: ${t.name.replace(/[:,\n]/g, ' ')}::${String(e.message).replace(/\n/g, ' ').slice(0, 900)}`); if (page) await page.screenshot({ path: path.join(__dirname, 'failure-builder-' + ENGINE + '-' + tests.indexOf(t) + '.png') }).catch(() => {}); }
     await ctx.close();
   }
   await browser.close(); server.close();
