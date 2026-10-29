@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Time-driven loop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Time-driven loop</div>
+<svg width="1152" height="300" viewBox="0 0 1152 300" aria-hidden="true" style="position: absolute; left: 64px; top: 200px"><g transform="{{moveT}}" opacity="{{moveO}}"><rect x="0" y="0" width="60" height="60" rx="8" fill="#DCE5FA" stroke="#2557D6"/></g></svg>
+<div style="position: absolute; left: 64px; top: 560px; font-size: 22px">t = {{label}}</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+componentDidMount() {
+var self = this; var reduce = false;
+try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+if (reduce) { this.setState({ t: 3.9 }); return; }
+var start = Date.now();
+this.timer = setInterval(function () { self.setState({ t: ((Date.now() - start) / 1000) % 4 }); }, 40);
+}
+componentWillUnmount() { if (this.timer) { clearInterval(this.timer); } }
+renderVals() { var t = this.state.t || 0; return { moveT: 'translate(' + (t * 250).toFixed(1) + ' 100)', moveO: t < 3.8 ? 1 : 0.5, label: t.toFixed(1) + ' s' }; }
+}
+</script>
+</body>
+</html>

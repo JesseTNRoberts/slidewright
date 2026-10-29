@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A hidden slide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">A hidden slide</div>
+<div style="position: absolute; left: 64px; top: 200px; font-size: 22px">Not shown in the deck.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -29,6 +29,10 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run tests
         run: node tests/run.cjs
+      - name: Install the converter
+        run: cd board-to-reveal && npm install --no-package-lock --omit=optional
+      - name: Converter and Slidewright together
+        run: node tests/builder.cjs
       - name: Keep screenshots of failures
         if: failure()
         uses: actions/upload-artifact@v4

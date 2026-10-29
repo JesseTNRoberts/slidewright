@@ -24,6 +24,19 @@ Slidewright opens any reveal.js deck, but several features rely on the structure
 | Speaker notes in `<aside class="notes">` inside the `<section>` | Notes field, presenter view, handout | Notes not shown |
 | Alt text: `alt` on `<img>`; `role="img"` + `aria-label` on graphics; `aria-hidden="true"` for decoration | Alt-text view and accessibility check | Pictures reported as missing alt text |
 
+## Written by the converter, kept as-is
+
+The converter that writes these decks lives in [`board-to-reveal/`](../board-to-reveal/README.md). These parts of its output have no editing features in Slidewright, but they must survive a save unchanged; `tests/builder.cjs` checks that they do.
+
+| Structure | What it does in the deck |
+|---|---|
+| `<section data-visibility="hidden">` | A slide hidden on the board: kept in the file, dropped by reveal.js at load |
+| `data-pos='{"0":"x,y",…}'` on items that glide between click steps | Positions per click step, applied by the deck's script |
+| `<div class="fragment step-trigger" aria-hidden="true">` | An empty click that only moves `data-pos` items |
+| `data-build-dot` and `data-track` on SVG circles | A marker that moves along a plot, one point per click |
+| CSS `@keyframes` named `sN-…` in the deck's `<style>`, inline `animation:` on items | Animations that play on their click |
+| `data-live="N"` on a `<section>`, `data-lv='[[attribute, template],…]'` on items, and a `<script>` that sets `window.__LIVE` | Time-driven animation: the slide's own component runs while the slide is shown and rewrites those attributes; the attribute values saved in the file are the resting state |
+
 ## What Slidewright adds when it saves
 
 - Inline `style` changes on items you edit (colours are written as `rgb(…)`).

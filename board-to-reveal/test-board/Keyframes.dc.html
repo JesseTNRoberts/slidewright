@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CSS animation on a click (click Next)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+@keyframes slide { from { transform: translateX(0); } to { transform: translateX(600px); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">CSS animation on a click (click Next)</div>
+<sc-if value="{{s1}}"><div style="position: absolute; left: 64px; top: 220px; width: 120px; height: 120px; background: #C2510F; animation: slide 1.5s ease both"></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"int","default":0,"min":0,"max":1,"section":"Build"},"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+renderVals() { var step = this.state.step; if (step === undefined || step === null) { step = this.props.step ?? 0; } return { step: step, s1: step > 0 }; }
+}
+</script>
+</body>
+</html>

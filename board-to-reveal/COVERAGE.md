@@ -1,0 +1,62 @@
+# Board patterns the converter supports
+
+| Pattern on the board | How it exports | Since |
+|---|---|---|
+| Static slide: absolutely positioned HTML, inline SVG plots, flex/grid layouts | Copied as-is into one `<section>` | 1.0 |
+| `<sc-for>` / `<sc-if>` / `{{holes}}` filled by `renderVals()` (pixel grids, repeated cards) | Run in Node and expanded to static markup | 1.0 |
+| Click-through slide: `this.state.step` with `data-props` `"step": {"max": N}`, Next/Reset buttons | One reveal fragment per step; buttons removed | 1.0 |
+| Step that only moves elements with inline `transition` on `left`/`top` | Elements glide to their new spots on the click | 1.0 |
+| Any other step change (text, panels, plot lines appearing) | Full-slide layer that fades in; covered layers hidden from screen readers | 1.0 |
+| Step that both moves `transition` elements and changes other content (e.g. a marker gliding along a plot while a diagram and readout update) | Fade-in layer whose moving elements start at their previous spots and glide to the new ones | 1.2 |
+| Region that grows: `transition` on `left`, `top`, `width`, `height` (e.g. the model class expanding as hidden units are added) | Position and size both animate on the click, also across fade-in layers | 1.4 |
+| CSS `@keyframes` animation: keyframes (and an optional `prefers-reduced-motion` `@media` block) in the slide's `<helmet><style>`, inline `animation:` on elements, usually inside the step that should play it (e.g. a filter window sweeping a grid left to right, top to bottom while the feature map fills in cell by cell). Give each animated element its final look as its own style (`animation-fill-mode: both`), so it reads correctly with animations off | Keyframe names prefixed per slide. Each animation plays from the start when its click step is shown, and shows its end state when you come back to the slide, print, or download the PDF. Viewers with reduced motion see the end state at once | 1.6 |
+| CSS `@keyframes` animation on a slide with no click steps (e.g. 87 space heaters flying into a rack, which then glows) | Plays from the start every time the slide is shown; end state in print and the PDF | 1.6.4 |
+| Time-driven animation: `componentDidMount()` starts a timer (`setInterval`, `setTimeout` or `requestAnimationFrame`) that calls `setState` with a clock value (`t`, `t0`/`now`), and `renderVals()` turns it into `{{holes}}` in attributes (`transform`, `opacity`, colours) or an element's whole text. Works on its own (a weight flying from the filter into the matrix, column by column, on a loop) and on click-through slides whose Next starts a short animation (gradient copies flying into the update box) | The slide's own component runs in the browser while the slide is shown, and only those attributes and texts are updated. A click forward does what the board's Next button did, so its animation plays; going back or jumping shows the step's resting state. Off the slide, in print and in the PDF, every value shows the state the slide's reduced-motion branch sets (or the finished step). The build plays every step on a fake clock and stops if the animation changes the slide's structure (`<sc-for>`/`<sc-if>`) while it runs | 1.7 |
+| `data-build-step="k"` on an element | Fragment that appears at click k | 1.0 |
+| SVG `<circle data-build-dot data-track="x,y;…">` | Marker that moves along the plot, one point per click | 1.0 |
+| KaTeX `\( … \)` / `\[ … \]` | KaTeX and its fonts inlined only when used | 1.0 |
+| Element ids and SVG marker references | Prefixed per slide so they stay unique | 1.0 |
+| Boards on the `hidden` page (a page with id `hidden` in `canvas.json` `pages`) | Kept in the file in their `order` spot as `<section data-visibility="hidden">`, so reveal.js drops them at load: not shown, not counted, not in the PDF. Move a board back to a visible page and re-export to show it | 1.6.3 |
+| A hidden board first in the `order` | The first visible board is the title slide: it gets the PDF button and the screen-reader copyright notice | 1.6.4 |
+| A slide with no 40–72px title text (e.g. an image title slide) | Its `data-title` (slide list, screen readers) is the board's name in `canvas.json`, minus a trailing "(click Next)" | 1.6.4 |
+| Slide title as an `<h1>` (40–72px) followed by a subtitle | `data-title` is the `<h1>` text alone | 1.6.5 |
+| Uploaded images and fonts (`/_blob/<id>`), e.g. a reaction image | Inlined as data URIs from the asset files saved by an Artifact read of each id (`<id>.<ext>` next to `project/`); `--check` fails on any image that does not load | 1.1 |
+| A diagram cropped by its container (`overflow: hidden`, or an `<svg>` viewBox), e.g. a Torch Canvas export showing only block 1 | Copied as-is; `--check` measures only the part that is drawn, so clipped-away content is not reported as overflow or overlapping text | 1.7 |
+
+## Added to every export (nothing to build on the board)
+
+| Feature | How it works | Since |
+|---|---|---|
+| "Download slides as PDF" button on the title slide | The PDF is made in the student's browser and downloads directly (no print dialog): one 1280×720 page (13.33 × 7.5 in) per slide, each slide as it looks after its last click. Uses jsPDF, inlined. About 5 s for 34 slides; pages are images, so the PDF text is not selectable. The button hides when presenting fullscreen (F), off the title slide, and in the PDF itself. | 1.5 |
+| Copyright line on every slide | `© <year> Dr. Jesse Roberts`, 11px Plex Mono, `#5A5F6B`. Screen readers hear it on the title slide only. Change or drop it with `--copyright="Name"`, `--year=YYYY`, `--no-copyright`. | 1.5 |
+| Free-spot placement | When the deck loads, the button and each copyright line move to a spot with no slide content under them (button: lowest free spot on the right, then the left, then closer to the right and left edges; copyright: bottom-left, bottom-right, then the top corners). `--check` reports any that found no free spot. | 1.5 |
+| Ctrl/Cmd+P | One slide-sized page per slide, last click step only, backgrounds included, CSS animations shown at their end state, time-driven animations at their resting state. Reveal's own letter-paper print stylesheet is removed. `?print-pdf` still works for checking every slide at once in WAVE. | 1.5 |
+| Decks exported before 1.5 | `node add-extras.js old.html [new.html]` adds the same button, copyright line and print layout to an existing export; then `node verify.js new.html shots/` checks it. | 1.5 |
+
+## Not supported yet (the converter stops or the result needs a fix)
+
+- `<dc-import>` child components.
+- Interactive state other than `step` that is not driven by a timer started in `componentDidMount` (e.g. sliders, toggles, text inputs).
+- A time-driven animation that adds or removes elements while it plays (its `<sc-for>`/`<sc-if>` output changes over time), or that animates a value inside an element's mixed content (stops with exit code 3). Animate attributes, or an element's whole text, instead.
+- A CSS `animation` on a slide whose `<helmet><style>` has no `@keyframes` (stops with exit code 3). Other CSS in `<helmet><style>` (class rules, hover styles) is still dropped; put styling inline.
+- A single-file HTML export of the board, if the Design editor offers one. Only a folder or .zip of the board's files is read today.
+
+## Checks for CSS animations (`--check`)
+
+`css animations` lists each slide with keyframe animations: how many there are, how many restarted on their click (`restarted`), and how many reached their end state (`finished`). `bad` must be 0. A mid-way screenshot `NN_FF_mid.png` is taken 3 s after each animated click; the regular screenshots show every animation finished. Animations on slides with no click steps report 0 here; check them by opening the slide. Time-driven animations are checked at build time (every step played on a fake clock against its bound template); the build log marks those slides `[time-animated]`.
+
+## Changelog
+
+- 1.7.0 (Oct 29, 2026): from "Max pooling is a gate" (30 slides + 17 hidden). Time-driven animations: slides whose component starts a timer in `componentDidMount` and animates through `setState` (A conv is a local linear layer with tied weights: each filter weight flies into its column of Wᵀ on an 18 s loop; Tied weights add up their gradients: each Next sends the copies of one weight's gradient flying into its update box). The values that change are bound in the exported markup and the slide's own component runs while the slide is shown; everywhere else they rest at the reduced-motion or finished state. `--check` now measures only the drawn part of anything inside a clipping container, so a cropped diagram no longer counts as overflow, and it lists text overlaps per slide.
+- 1.6.5 (Oct 29, 2026): from "Residual connections and normalization" (22 slides). A slide title written as an `<h1>` no longer pulls the subtitle into `data-title` (the title match stopped only at `</div>`, so it ran on through the next `<div>`); it now stops at `</h1>` too.
+- 1.6.4 (Oct 28, 2026): from "What's inside the box" (19 slides + 1 hidden). A hidden first board no longer takes the title slide's PDF button (it vanished with the hidden slide); the first visible board gets it. Slides with no big title text take their board name as `data-title`. Animations on slides without click steps (87 space heaters flying into a rack) replay each time the slide is shown instead of being finished on arrival. The PDF button also tries spots nearer the slide edges before falling back (the centred meme title slide had no free spot at 64px).
+- 1.6.3 (Oct 23, 2026): hidden boards stay in the exported file instead of being dropped (Activity: you are the LLM, hidden for time). The build log lists them as `[hidden]` and counts them separately.
+- 1.6.2 (Oct 23, 2026): `--check` finds the workspace's preinstalled Chromium in its newer layout (`chromium_headless_shell-*/chrome-headless-shell-linux64/`, or the `/opt/pw-browsers/chromium` link) instead of failing to launch. Tested on "How Generative AI Really Works" (42 slides, 2 animated click-throughs, 3 state-driven fade steps).
+- 1.6.1 (Oct 23, 2026): animations that are visible only during their own time slot (base `opacity: 0`, `animation-fill-mode: none`; Max pooling, window by window: the zoom panel and the max marker for each 2 × 2 window) now restart on their click too: restarts reset each element's own `animation` style instead of relying on `getAnimations()`, which drops animations that already played. `--check` ignores text that is shown only during its own animation slot when looking for overlaps, and counts finished animations on the objects it restarted.
+- 1.6 (Oct 22, 2026): CSS `@keyframes` animations (Sliding the filter over the 7: the 5 × 5 window sweeps the digit while the feature map fills in). Keyframes carried over from `<helmet><style>` with per-slide names, restarted on their click, finished on slide entry, print and PDF; reduced-motion `@media` blocks kept. `--check` reports `css animations` and saves a mid-animation screenshot.
+- 1.5 (Oct 22, 2026): student extras for every export: "Download slides as PDF" button on the title slide (in-browser PDF, last click step, slide-sized pages), copyright line on every slide, slide-sized Ctrl/Cmd+P printing; both placed in a free spot at load. `add-extras.js` patches older exports. `--check` reports `extras` and downloads the PDF (`pdf` pages must equal `total`).
+- 1.4 (Oct 22, 2026): growing regions animate size as well as position (Hypothesis 2 slide: the chosen class expands with p).
+- 1.3 (Oct 22, 2026): `--check` also reports text drawn on top of other text (caught a caption spilling out of its card on the model-space map).
+- 1.2 (Oct 22, 2026): markers glide across fade-in layers (U-curve slide: dot moves along the curve as hidden units grow while the model diagram redraws).
+- 1.1 (Oct 22, 2026): uploaded images inlined (the "But why?" reaction image on "Yet on real labels, it works"); broken-image check added to `--check`.
+- 1.0 (Oct 22, 2026): first version, built from the "What did your MLP actually learn?" deck (31 slides, 5 click-through slides, one animated step).

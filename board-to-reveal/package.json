@@ -1,0 +1,24 @@
+{
+  "name": "board-to-reveal",
+  "version": "1.7.0",
+  "private": true,
+  "description": "Convert a Design art-board lecture deck into one self-contained reveal.js HTML file.",
+  "bin": {
+    "board-to-reveal": "convert.js"
+  },
+  "scripts": {
+    "convert": "node convert.js",
+    "add-extras": "node add-extras.js",
+    "setup-check": "playwright install chromium"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.0.12",
+    "@fontsource/ibm-plex-sans": "5.0.20",
+    "adm-zip": "0.5.14",
+    "katex": "0.16.9"
+  },
+  "optionalDependencies": {
+    "axe-core": "4.9.1",
+    "playwright": "1.47.2"
+  }
+}

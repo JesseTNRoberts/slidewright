@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Time-driven click steps (click Next)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Time-driven click steps (click Next)</div>
+<sc-if value="{{s1}}"><div style="position: absolute; left: 64px; top: 160px; font-size: 22px">The square flies on each click.</div></sc-if>
+<svg width="1152" height="300" viewBox="0 0 1152 300" aria-hidden="true" style="position: absolute; left: 64px; top: 220px"><g transform="{{flyT}}"><rect x="0" y="0" width="50" height="50" fill="#FBE3D2" stroke="#C2510F"/></g></svg>
+<div style="position: absolute; left: 64px; top: 600px"><button onClick="{{next}}">Next</button></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"int","default":0,"min":0,"max":2,"section":"Build"},"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+componentDidMount() {
+var self = this;
+this.timer = setInterval(function () { var t0 = self.state.t0; if (t0 && Date.now() - t0 < 1200) { self.setState({ now: Date.now() }); } }, 40);
+}
+componentWillUnmount() { if (this.timer) { clearInterval(this.timer); } }
+renderVals() {
+var self = this; var step = this.state.step; if (step === undefined || step === null) { step = this.props.step ?? 0; }
+var p = 1; if (this.state.t0) { p = Math.max(0, Math.min(1, ((this.state.now || this.state.t0) - this.state.t0) / 1000)); }
+var from = (step - 1) * 300, to = step * 300, x = step === 0 ? 0 : from + (to - from) * p;
+return { step: step, s1: step > 0, flyT: 'translate(' + x.toFixed(1) + ' 100)', next: function () { self.setState({ step: Math.min(2, step + 1), t0: Date.now(), now: Date.now() }); } };
+}
+}
+</script>
+</body>
+</html>
