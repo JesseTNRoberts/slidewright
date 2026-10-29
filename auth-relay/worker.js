@@ -9,7 +9,7 @@
  *   GITHUB_CLIENT_ID      the OAuth app's Client ID            (text)
  *   GITHUB_CLIENT_SECRET  the OAuth app's Client secret        (secret)
  *   ALLOWED_ORIGINS       comma-separated sites allowed to sign in,
- *                         e.g. https://jessetnroberts.github.io  (text)
+ *                         e.g. https://www.jessetnroberts.com,https://jessetnroberts.com  (text)
  *   SCOPE                 optional; "repo" (default) or "public_repo"
  */
 const b64url = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

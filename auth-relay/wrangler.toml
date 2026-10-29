@@ -5,7 +5,7 @@ main = "worker.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-ALLOWED_ORIGINS = "https://jessetnroberts.github.io"
+ALLOWED_ORIGINS = "https://www.jessetnroberts.com,https://jessetnroberts.com"
 # GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are set with:
 #   npx wrangler secret put GITHUB_CLIENT_ID
 #   npx wrangler secret put GITHUB_CLIENT_SECRET

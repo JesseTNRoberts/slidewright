@@ -18,7 +18,7 @@ Setup takes about ten minutes, once. It's free on Cloudflare's plan.
 1. Open [github.com/settings/applications/new](https://github.com/settings/applications/new) (Settings → Developer settings → OAuth Apps → New OAuth App).
 2. Fill in:
    - **Application name:** Slidewright
-   - **Homepage URL:** `https://jessetnroberts.github.io/slidewright/`
+   - **Homepage URL:** `https://www.jessetnroberts.com/slidewright/`
    - **Authorization callback URL:** your worker address plus `/callback`, e.g. `https://slidewright-auth.YOUR-NAME.workers.dev/callback`
 3. Click **Register application**. Copy the **Client ID**, then click **Generate a new client secret** and copy the secret (GitHub shows it only once).
 
@@ -30,7 +30,9 @@ In Cloudflare, open the worker → **Settings → Variables and Secrets** and ad
 |---|---|---|
 | `GITHUB_CLIENT_ID` | Text | the Client ID |
 | `GITHUB_CLIENT_SECRET` | Secret | the client secret |
-| `ALLOWED_ORIGINS` | Text | `https://jessetnroberts.github.io` |
+| `ALLOWED_ORIGINS` | Text | `https://www.jessetnroberts.com,https://jessetnroberts.com` |
+
+`ALLOWED_ORIGINS` must match the address Slidewright is served from exactly. Because the GitHub Pages site uses the custom domain `www.jessetnroberts.com`, that's the address to list (the `github.io` address only redirects there).
 
 Optional: `SCOPE` = `public_repo` if every deck lives in a public repository. The default, `repo`, also covers private course repositories.
 

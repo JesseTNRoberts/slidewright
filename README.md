@@ -2,7 +2,7 @@
 
 Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, change it on the slide itself, and save it back as the same kind of file.
 
-**Use it:** https://jessetnroberts.github.io/slidewright/
+**Use it:** https://www.jessetnroberts.com/slidewright/
 
 ## What it does
 

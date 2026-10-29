@@ -2205,7 +2205,7 @@ const ghTok=()=>{try{return localStorage.getItem('slidewright.ghToken')||S.ghTok
 async function gh(path,opts){
   opts=opts||{}; const tok=ghTok(); const h={'Accept':opts.accept||'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; if(tok) h.Authorization='Bearer '+tok; if(opts.body) h['Content-Type']='application/json';
   let r; try{r=await fetch(path.startsWith('http')?path:GH+path,{method:opts.method||'GET',headers:h,body:opts.body?JSON.stringify(opts.body):undefined,cache:'no-store'});}
-  catch(e){throw new Error('This copy of Slidewright can’t reach GitHub. Use it from https://jessetnroberts.github.io/slidewright/ instead.');}
+  catch(e){throw new Error('This copy of Slidewright can’t reach GitHub. Use it from https://www.jessetnroberts.com/slidewright/ instead.');}
   if(r.status===401) throw Object.assign(new Error('GitHub didn’t accept the access token. Check it hasn’t expired.'),{status:401});
   if(!r.ok){let msg=''; try{msg=(await r.json()).message;}catch(_){} throw Object.assign(new Error(`GitHub said: ${msg||r.statusText} (${r.status})`),{status:r.status});}
   return opts.raw?r.text():r.json();
