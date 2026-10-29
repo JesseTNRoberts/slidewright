@@ -332,8 +332,8 @@ function applyPresent(html, opt) {
   html = html.slice(0, se) + PRESENT_CSS + html.slice(se);
   if (opt.source) { const t = html.indexOf('<title'); html = html.slice(0, t) + sourceMeta(opt.source) + '\n' + html.slice(t); }
   // after the slides, before the first script in <body>
-  const b = html.indexOf('<body'), first = html.indexOf('<script', b);
-  if (b < 0 || first < 0) throw new Error('no script in <body>');
+  const b = html.indexOf('<body'), first = html.indexOf('<script', Math.max(b, html.lastIndexOf('</section>')));
+  if (b < 0 || first < 0) throw new Error('no script after the slides');
   html = html.slice(0, first) + presentButton() + '\n' + CAPTURE + '\n' + html.slice(first);
   const bodyEnd = html.lastIndexOf('</body>');
   html = html.slice(0, bodyEnd) + presentRuntime(opt.slidewright) + '\n' + html.slice(bodyEnd);
