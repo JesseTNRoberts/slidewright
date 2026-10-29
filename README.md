@@ -11,7 +11,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 - Scale an item with its text and padding together (Alt-drag a corner)
 - Type directly into text; double-click a card or group to work inside it
 - Paste or drop images onto a slide
-- Equations: write LaTeX with your course notation; decks that use `\( … \)` keep that form when saved
+- Equations: type `\( … \)`, `$…$` or `$$…$$` straight into text and it renders when you finish typing, or right-click → Insert equation to open a LaTeX editor at the cursor; decks that use `\( … \)` keep that form when saved
 - Text styles picked up from the deck (Title, Subtitle, Body…), your own saved styles, and a style painter
 - Undo and redo for everything, including slide changes; group, align, layer, duplicate; find and replace
 
@@ -23,7 +23,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 
 **Accessibility**
 - Show alt text on every picture, flag the ones without it, and edit or mark them decorative
-- Check the whole deck for missing headings, low contrast, small text and reading order, with one-click fixes
+- Accessibility check modelled on how YuJa Panorama and Anthology Ally score HTML: an estimated score, the rules they penalise (alt text, alt over 120 characters, headings, contrast, tables, lists, repeated IDs, zoom, small text…) grouped by severity, filters, and one-click fixes
 
 **Sharing and history**
 - Export a PDF (one page per slide or per click) and a student handout with speaker notes
