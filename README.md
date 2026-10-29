@@ -16,7 +16,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 - Undo and redo for everything, including slide changes; group, align, layer, duplicate; find and replace
 
 **Slides and builds**
-- New slides from the deck's own layouts, with placeholders
+- New slides from standard layouts styled to match the deck (title, section header, title and content, two columns, comparison, picture with caption, key number, statement) or from the deck's own slides
 - Slide sorter: see every slide at once, multi-select, drag to reorder, duplicate, delete
 - Linked build steps: an item that looks the same in every click step changes everywhere at once
 - Preview clicks and animations in place, and reorder what appears on each click

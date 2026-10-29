@@ -266,7 +266,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .mathed{display:flex;flex-direction:column;gap:10px}
 .mathprev{min-height:70px;display:grid;place-items:center;padding:12px;border:1px dashed var(--line);border-radius:8px;font-size:28px;background:#fff;color:#16181D;overflow:auto}
 .snips{display:flex;flex-wrap:wrap;gap:4px}.snips .btn{height:28px;padding:0 8px;font-family:'Latin Modern Math','STIX Two Math','Cambria Math',Georgia,serif;font-size:14px}
-.lay-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;max-height:62vh;overflow:auto;padding:2px}
+.lay-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;padding:2px}
+.lay-wrap{max-height:66vh;overflow:auto;padding-right:4px}
+.lay-h{margin:4px 0 0;font:600 11px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .lay-card{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);padding:8px;cursor:pointer;text-align:left;min-width:0}
 .lay-card:hover,.lay-card:focus-visible{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-1px}
 .lay-card .tf,.sorter-card .tf,.cmp-t .tf,.pv-cur,.pv-next{position:relative;display:block;aspect-ratio:16/9;background:#fff;border:1px solid var(--line);border-radius:4px;overflow:hidden}
@@ -2071,18 +2073,75 @@ function layoutSection(rep){
   const cp=rep.querySelector(':scope > .slide-copy'); if(cp) sec.appendChild(cp.cloneNode(true));
   return sec;
 }
+/* ======================= standard layouts styled from the deck ======================= */
+function deckTheme(){
+  const st=S.styles||[]; const by=re=>st.find(o=>re.test(o.name));
+  const css=o=>o?Object.entries(o.props).map(([k,v])=>`${k}: ${v}`).join('; '):'';
+  const T={title:by(/^Title/)||by(/^Display/), sub:by(/^Subtitle/), body:by(/^Body$/)||by(/^Body/), label:by(/Label/), cap:by(/^Caption/)};
+  // slide root: copy the look of an existing slide's root, minus layout behaviour
+  let root=`width: ${S.W}px; height: ${S.H}px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; overflow: hidden`;
+  for(const s of S.slides){ const r=contentRoot(finalBase(s)); if(r&&r.tagName==='DIV'&&r!==finalBase(s)&&r.getAttribute('style')){ const d=document.createElement('div'); d.setAttribute('style',r.getAttribute('style'));
+      ['display','flex-direction','justify-content','align-items','gap','padding','padding-top','padding-right','padding-bottom','padding-left','grid-template-columns'].forEach(p=>d.style.removeProperty(p));
+      d.style.position='relative'; d.style.width=S.W+'px'; d.style.height=S.H+'px'; d.style.overflow='hidden'; root=d.getAttribute('style'); break; } }
+  // card look and hairline rule colour, most common in the deck
+  const cards={}, rules={};
+  for(const s of S.slides){ for(const e of finalBase(s).querySelectorAll('div[style]')){ const x=e.style;
+      if(x.borderRadius&&x.borderTopWidth&&x.backgroundColor&&e.textContent.trim()){ const k=['background-color','border-top-width','border-top-style','border-top-color','border-top-left-radius'].map(p=>x.getPropertyValue(p)).join('|'); cards[k]=(cards[k]||0)+1; }
+      if(parseFloat(x.height)===1&&parseFloat(x.width)>400&&x.backgroundColor) rules[x.backgroundColor]=(rules[x.backgroundColor]||0)+1; } }
+  const top=o=>Object.entries(o).sort((a,b)=>b[1]-a[1])[0];
+  const ck=top(cards); let card='box-sizing: border-box; background: #FFFFFF; border: 1px solid #DADDE2; border-radius: 12px';
+  if(ck){const [bg,bw,bs,bc,br]=ck[0].split('|'); card=`box-sizing: border-box; background: ${bg}; border: ${bw} ${bs} ${bc}; border-radius: ${br}`;}
+  const rk=top(rules); const rule=rk?rk[0]:'#DADDE2';
+  const muted=(T.sub&&T.sub.props.color)||'#4E5360';
+  const copy=(()=>{for(const s of S.slides){const c=s.querySelector(':scope > .slide-copy'); if(c) return c;} return null;})();
+  return {root,card,rule,muted,accent:S.accent||'#2557D6',copy,
+    title:css(T.title)||'font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -0.01em',
+    sub:css(T.sub)||`font-size: 21px; line-height: 28px; color: ${muted}`,
+    body:css(T.body)||'font-size: 22px; line-height: 30px',
+    label:css(T.label)||`font-family: 'IBM Plex Mono', monospace; font-size: 15px; line-height: 20px; font-weight: 500`,
+    cap:css(T.cap)||`font-size: 16px; line-height: 23px; color: ${muted}`};
+}
+function stdLayouts(){
+  const th=deckTheme(); const kx=S.W/1280, ky=S.H/720; const X=v=>Math.round(v*kx), Y=v=>Math.round(v*ky), M=X(64), CW=S.W-2*M;
+  const mk=(tag,style,text)=>{const e=document.createElement(tag); e.setAttribute('style',style); if(text!=null) e.textContent=text; return e;};
+  const at=(x,y,w,h)=>`position: absolute; left: ${x}px; top: ${y}px; width: ${w}px`+(h?`; height: ${h}px`:'');
+  const heading=(lv,style,text)=>{const h=mk('h'+lv,style,text); headingSafe(h); return h;};
+  const titleSize=s=>s.replace(/font-size:\s*[\d.]+px/,'font-size: '+s).replace(/;?\s*$/,'');
+  const big=(px,lh)=>th.title.replace(/font-size:\s*[\d.]+px/,`font-size: ${px}px`).replace(/line-height:\s*[\d.]+px/,`line-height: ${lh}px`);
+  const bullets=(x,y,w,items,style)=>{const ul=mk('ul',`${at(x,y,w)}; margin: 0; padding-left: 1.2em; ${style||th.body}`); items.forEach((t,i)=>{const li=mk('li',i<items.length-1?'margin-bottom: 14px':'',t); ul.appendChild(li);}); return ul;};
+  const footer=root=>{root.appendChild(mk('div',`${at(M,Y(620),CW)}; height: 1px; background: ${th.rule}`)); root.appendChild(mk('div',`${at(M,Y(636),CW)}; ${th.body}`,'The one thing to remember from this slide.'));};
+  const titleBlock=(root,sub)=>{root.appendChild(heading(2,`${at(M,Y(48),CW)}; ${th.title}`,'Slide title')); if(sub!==false) root.appendChild(mk('div',`${at(M,Y(112),CW)}; ${th.sub}`,sub||'One line on what this slide shows'));};
+  const figure=(x,y,w,h)=>mk('div',`${at(x,y,w,h)}; box-sizing: border-box; border: 2px dashed #B9BEC8; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #7A8292; font-size: 18px`,'Figure: paste or drop an image here');
+  const section=(name,build)=>{const sec=document.createElement('section'); sec.setAttribute('data-title',name); const root=mk('div',th.root); build(root); sec.appendChild(root); if(th.copy) sec.appendChild(th.copy.cloneNode(true)); return sec;};
+  return [
+    ['Title slide','Deck title and subtitle',()=>section('Title slide',r=>{ r.appendChild(heading(S.slides.some(s=>s.querySelector('h1'))?2:1,`${at(M,Y(220),CW)}; ${big(64,72)}`,'Deck title')); r.appendChild(mk('div',`${at(M,Y(308),CW)}; ${th.sub.replace(/font-size:\s*[\d.]+px/,'font-size: 26px').replace(/line-height:\s*[\d.]+px/,'line-height: 36px')}`,'Subtitle: what this lecture is about')); r.appendChild(mk('div',`${at(M,Y(376),120,4)}; background: ${th.accent}`)); })],
+    ['Section header','Starts a new part of the talk',()=>section('Section',r=>{ r.appendChild(mk('div',`${at(M,Y(240),CW)}; ${th.label}; color: ${th.accent}; letter-spacing: 0.08em`,'PART 02')); r.appendChild(heading(2,`${at(M,Y(270),CW)}; ${big(56,64)}`,'Section title')); r.appendChild(mk('div',`${at(M,Y(350),X(900))}; ${th.sub}`,'What this part covers, in one line')); })],
+    ['Title and content','Title, subtitle, bullets, takeaway',()=>section('New slide',r=>{ titleBlock(r); r.appendChild(bullets(M,Y(180),X(1000),['First point','Second point','Third point'])); footer(r); })],
+    ['Two columns','Two lists side by side',()=>section('New slide',r=>{ titleBlock(r); const w=X(544);
+      [[M,'Left heading'],[M+w+X(64),'Right heading']].forEach(([x,h])=>{ r.appendChild(mk('div',`${at(x,Y(180),w)}; ${th.body}; font-weight: 600`,h)); r.appendChild(bullets(x,Y(226),w,['First point','Second point','Third point'])); }); footer(r); })],
+    ['Comparison','Two cards to contrast',()=>section('New slide',r=>{ titleBlock(r); const w=X(560);
+      [[M,'OPTION A'],[M+w+X(32),'OPTION B']].forEach(([x,l])=>{ const c=mk('div',`${at(x,Y(190),w,Y(380))}; ${th.card}; padding: 28px 32px; display: flex; flex-direction: column; gap: 12px`); c.appendChild(mk('div',`${th.label}; color: ${th.accent}`,l)); c.appendChild(mk('div',`${big(30,38)}`,'Name it')); const ul=bullets(0,0,0,['Strength','Weakness','When to use it']); ul.setAttribute('style',`margin: 0; padding-left: 1.2em; ${th.body}`); c.appendChild(ul); r.appendChild(c); }); })],
+    ['Picture with caption','Figure, caption and notes',()=>section('New slide',r=>{ titleBlock(r); r.appendChild(figure(M,Y(172),X(720),Y(405))); r.appendChild(mk('div',`${at(M,Y(588),X(720))}; ${th.cap}`,'Caption: what to notice in the figure.')); r.appendChild(bullets(M+X(752),Y(180),X(400),['What it shows','Why it matters'])); })],
+    ['Key number','One big number and what it means',()=>section('New slide',r=>{ titleBlock(r,false); r.appendChild(mk('div',`${at(M,Y(200),CW)}; ${big(120,128)}; color: ${th.accent}`,'94%')); r.appendChild(mk('div',`${at(M,Y(352),X(820))}; ${th.body.replace(/font-size:\s*[\d.]+px/,'font-size: 28px').replace(/line-height:\s*[\d.]+px/,'line-height: 38px')}`,'What the number means, in one sentence.')); r.appendChild(mk('div',`${at(M,Y(460),X(820))}; ${th.cap}`,'Source or how it was measured')); })],
+    ['Statement','A single sentence, centred',()=>section('New slide',r=>{ r.appendChild(heading(2,`${at(X(160),Y(250),X(960))}; ${big(44,54)}; font-weight: 500; text-align: center`,'One sentence worth remembering.')); r.appendChild(mk('div',`${at(X(160),Y(400),X(960))}; ${th.cap}; text-align: center`,'Attribution or context')); })],
+    ['Title only','Title and subtitle, empty below',()=>section('New slide',r=>titleBlock(r))],
+    ['Blank','Nothing on the slide',()=>section('New slide',()=>{})],
+  ];
+}
+
 async function pickLayout(){
   endEdit(); const lays=collectLayouts().sort((a,b)=>b.n-a.n||a.i-b.i);
   const grid=el('div',{class:'lay-grid'}); let resolve; const done=new Promise(r=>resolve=r);
   const card=(title,sub,makeSec)=>{const b=el('button',{class:'lay-card',type:'button'}); const f=el('span',{class:'tf'}); b.append(f,el('span',{class:'lt',text:title}),el('span',{class:'ls',text:sub})); const sec=makeSec(); f.appendChild(makeThumbHost(sec,{width:200})); b.onclick=()=>resolve(sec); return b;};
-  grid.appendChild(card('Blank','Title only',()=>makeBlankSection()));
+  const std=el('div',{class:'lay-grid'}); for(const [n,d,mkSec] of stdLayouts()){ try{ std.appendChild(card(n,d,mkSec)); }catch(e){} }
   const addCards=list=>{for(const l of list){ try{ grid.appendChild(card(slideTitle(l.rep,l.i),l.n>1?`Layout used on ${l.n} slides`:`Like slide ${l.i+1}`,()=>layoutSection(l.rep))); }catch(e){} }};
   addCards(lays.slice(0,11));
   if(lays.length>11){const more=el('button',{class:'btn',type:'button',text:`Show all ${lays.length} layouts`,style:'grid-column:1/-1;justify-self:start',onclick:()=>{more.remove(); addCards(lays.slice(11));}}); grid.appendChild(more);}
-  const wrap=el('div',{class:'stack'},el('p',{class:'hint',text:'Layouts come from this deck, most-used first. Text becomes placeholders and pictures become “Figure” boxes.'}),grid);
+  const wrap=el('div',{class:'stack lay-wrap'},el('h3',{class:'lay-h',text:'Standard layouts'}),el('p',{class:'hint',text:'Styled to match this deck: its fonts, title and body styles, accent colour and cards. Titles are real headings and bullets are real lists.'}),std,
+    lays.length?el('h3',{class:'lay-h',text:'From this deck'}):null,lays.length?el('p',{class:'hint',text:'Copies of your own slides, most-used layout first. Text becomes placeholders and pictures become “Figure” boxes.'}):null,lays.length?grid:null);
   const bg=el('div',{class:'modal-bg'}); const m=el('div',{class:'modal wide',role:'dialog','aria-modal':'true','aria-label':'New slide'},el('h2',{text:'New slide'}),wrap,el('div',{class:'actions'},el('button',{class:'btn',text:'Cancel',onclick:()=>resolve(null)})));
   bg.appendChild(m); document.body.appendChild(bg); const kd=e=>{if(e.key==='Escape'){e.stopPropagation(); resolve(null);}}; document.addEventListener('keydown',kd,true); bg.addEventListener('pointerdown',e=>{if(e.target===bg) resolve(null);});
-  grid.firstChild.focus(); const sec=await done; bg.remove(); document.removeEventListener('keydown',kd,true);
+  std.firstChild.focus(); const sec=await done; bg.remove(); document.removeEventListener('keydown',kd,true);
   if(sec) slidesOp('Add slide',()=>{S.slides.splice(S.cur+1,0,sec); S.cur++;});
 }
 
