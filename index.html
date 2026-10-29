@@ -1368,7 +1368,7 @@ async function findReplace(){endEdit(); const w=document.createElement('div'); w
   if(n){commit('Replace text'); renderSlideList(); showSlide(); toast(`Replaced ${n} match${n===1?'':'es'}.`);} else toast('No matches found.');}
 function countIn(s,f,cs){if(!cs){s=s.toLowerCase(); f=f.toLowerCase();} let n=0,i=0; while((i=s.indexOf(f,i))>=0){n++; i+=f.length;} return n;}
 function textNodes(){const out=[]; for(const s of S.slides){const w=document.createTreeWalker(s,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement&&/^(SCRIPT|STYLE)$/.test(n.parentElement.tagName)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}); let n; while((n=w.nextNode())) if(n.data.trim()) out.push(n);} return out;}
-function shortcuts(){const t=document.createElement('table'); const rows=[['Click / Shift-click','Select / add to selection'],['Drag on empty space','Select everything inside the box'],['Double-click','Type in text, open a group, or replace an image'],['Enter / Esc','Start typing / step back out'],['Arrows (Shift)','Nudge 1 px (10 px)'],['Alt + drag corner','Scale text and everything in the item'],['Shift + drag','Keep straight / keep proportions'],['Alt while dragging','Turn snapping off for that drag'],['Ctrl/Cmd + C, X, V','Copy, cut, paste (images too)'],['Ctrl/Cmd + D','Duplicate'],['Ctrl/Cmd + G / Shift+G','Group / ungroup'],['Ctrl/Cmd + ] / [','Forward / backward (Shift: front / back)'],['Ctrl/Cmd + Z / Shift+Z','Undo / redo'],['Ctrl/Cmd + F','Find and replace'],['Ctrl/Cmd + S / O','Save / open'],['A','Show or hide alt text'],['Page Up / Down','Previous / next slide'],['Ctrl/Cmd + scroll','Zoom'],['P','Preview clicks and animations (arrows step, Esc stops)'],['While presenting: D, M, R','Pen, marker, laser pointer (E clears, C changes colour, B blanks the screen)'],['Esc','Stop the style painter']];
+function shortcuts(){const t=document.createElement('table'); const rows=[['Click / Shift-click','Select / add to selection'],['Drag on empty space','Select everything inside the box'],['Double-click','Type in text, open a group, or replace an image'],['Enter / Esc','Start typing / step back out'],['Arrows (Shift)','Nudge 1 px (10 px)'],['Alt + drag corner','Scale text and everything in the item'],['Shift + drag','Keep straight / keep proportions'],['Alt while dragging','Turn snapping off for that drag'],['Ctrl/Cmd + B, I, U','Bold, italic, underline (selected words while typing, or whole text boxes)'],['Ctrl/Cmd + Shift + X','Strikethrough'],['Ctrl/Cmd + Shift + > / <','Bigger / smaller text'],['Ctrl/Cmd + Shift + L, E, R','Align left, centre, right'],['Ctrl/Cmd + Shift + 7 / 8','Numbered / bulleted list (while typing)'],['Ctrl/Cmd + \\','Clear formatting (while typing)'],['Ctrl/Cmd + C, X, V','Copy, cut, paste (images too)'],['Ctrl/Cmd + D','Duplicate'],['Ctrl/Cmd + G / Shift+G','Group / ungroup'],['Ctrl/Cmd + ] / [','Forward / backward (Shift: front / back)'],['Ctrl/Cmd + Z / Shift+Z','Undo / redo'],['Ctrl/Cmd + F','Find and replace'],['Ctrl/Cmd + S / O','Save / open'],['A','Show or hide alt text'],['Page Up / Down','Previous / next slide'],['Ctrl/Cmd + scroll','Zoom'],['P','Preview clicks and animations (arrows step, Esc stops)'],['While presenting: D, M, R','Pen, marker, laser pointer (E clears, C changes colour, B blanks the screen)'],['Esc','Stop the style painter']];
   rows.forEach(([k,v])=>{const tr=t.insertRow(); tr.insertCell().innerHTML='<kbd></kbd>'; tr.cells[0].firstChild.textContent=k; tr.insertCell().textContent=v;}); modal('Keyboard shortcuts',t,[['Close',null]]);}
 
 /* ======================= menus ======================= */
@@ -1395,6 +1395,21 @@ $('#bPresent').onclick=e=>menu(e.currentTarget,[['Present here, full screen',pre
 $('#snapChk').onchange=e=>{S.snap=e.target.checked;};
 
 /* ======================= keyboard ======================= */
+/* Text formatting shortcuts, the same while typing and on selected text boxes (Google Slides' keys). */
+function textShortcut(e){
+  const mod=e.metaKey||e.ctrlKey; if(!mod||e.altKey) return false; const c=e.code, sh=e.shiftKey, ed=!!S.editing;
+  if(!ed&&(!S.sel.length||isField(e.target)||(e.target.closest&&e.target.closest('.menu')))) return false;
+  const click=q=>{const b=$(q); if(b){b.click(); return true;} return false;};
+  const exec=cmd=>{ if(!ed) return false; restoreRange(); try{document.execCommand('styleWithCSS',false,true);}catch(_){} document.execCommand(cmd); commit('Format'); syncInspector(); return true; };
+  let done=false;
+  if(!sh&&c==='KeyB') done=click('#tB'); else if(!sh&&c==='KeyI') done=click('#tI'); else if(!sh&&c==='KeyU') done=click('#tU');
+  else if(sh&&c==='KeyX'){ if(ed) done=exec('strikeThrough'); else { const el=selEls()[0]; const on=/line-through/.test(getComputedStyle(el).textDecorationLine); styleAll('text-decoration',on?'none':'line-through'); commit('Format'); syncInspector(); done=true; } }
+  else if(sh&&c==='Period') done=click('[data-tscale="1.1"]'); else if(sh&&c==='Comma') done=click('[data-tscale="0.9"]');
+  else if(sh&&c==='KeyL') done=click('[data-ta="left"]'); else if(sh&&c==='KeyE') done=click('[data-ta="center"]'); else if(sh&&c==='KeyR') done=click('[data-ta="right"]');
+  else if(sh&&c==='Digit7') done=exec('insertOrderedList'); else if(sh&&c==='Digit8') done=exec('insertUnorderedList');
+  else if(!sh&&c==='Backslash') done=exec('removeFormat');
+  if(done){ e.preventDefault(); e.stopPropagation(); } return done;
+}
 document.addEventListener('keydown',e=>{
   const mod=e.metaKey||e.ctrlKey, k=e.key, kl=k.toLowerCase();
   if($('.modal-bg')||$('.pop')||$('#sorter')||$('#presenter')||e.target.closest&&e.target.closest('.de-svgedit')) return;
@@ -1402,6 +1417,7 @@ document.addEventListener('keydown',e=>{
   if(S.painter&&e.key==='Escape'){stopPainter(); return;}
   if(mod&&kl==='s'){e.preventDefault(); if(e.shiftKey||saveConnected()) save(e.shiftKey); else saveMenu($('#bSave')); return;}
   if(mod&&kl==='o'){e.preventDefault(); openFile(); return;}
+  if(textShortcut(e)) return;
   if(S.editing){ if(k==='Escape'){e.preventDefault(); const el=S.editing; endEdit(); setSel([el]);} else if(mod&&(kl==='z'||kl==='y')){} return; }
   if(isField(e.target)||(e.target.closest&&e.target.closest('.menu'))) return;
   if(mod&&kl==='z'){e.preventDefault(); e.shiftKey?redo():undo(); return;}

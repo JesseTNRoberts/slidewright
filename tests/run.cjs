@@ -343,6 +343,30 @@ test('click into a selected group selects the part; double-click edits its text;
   assert(await sel() === 'tgrp', 'dragging should keep the group selected, got ' + await sel());
 });
 
+test('text shortcuts: Ctrl/Cmd+B, I, U and friends, while typing and on a selected box', async page => {
+  await page.evaluate(() => { const D = __deckEditor; D.go(0); const sec = D.S.slides[0]; const root = sec.querySelector(':scope > div') || sec;
+    const t = document.createElement('div'); t.id = 'tfmt'; t.style.cssText = 'position:absolute;left:300px;top:560px;width:600px;height:60px;font-size:28px;font-weight:400'; t.textContent = 'alpha beta gamma';
+    root.appendChild(t); D.commit('t'); D.setSel([t]); });
+  const cs = (p) => page.evaluate(p => getComputedStyle(document.getElementById('tfmt'))[p], p);
+  await page.keyboard.press('Control+b'); await wait(100);
+  assert(parseInt(await cs('fontWeight')) >= 600, 'Ctrl+B did not bold the selected box');
+  await page.keyboard.press('Control+u'); await wait(100);
+  assert(/underline/.test(await cs('textDecorationLine')), 'Ctrl+U did not underline the selected box');
+  await page.keyboard.press('Control+Shift+KeyE'); await wait(100);
+  assert(await cs('textAlign') === 'center', 'Ctrl+Shift+E did not centre');
+  const fs0 = parseFloat(await cs('fontSize')); await page.keyboard.press('Control+Shift+Period'); await wait(100);
+  assert(parseFloat(await cs('fontSize')) > fs0, 'Ctrl+Shift+> did not enlarge text');
+  await page.keyboard.press('Control+z'); await wait(100);
+  assert(parseFloat(await cs('fontSize')) === fs0, 'undo did not reverse the size change');
+  // while typing: only the selected word changes
+  await page.evaluate(() => { const D = __deckEditor; D.startEdit(document.getElementById('tfmt')); const tn = document.getElementById('tfmt').firstChild;
+    const r = document.createRange(); r.setStart(tn, 6); r.setEnd(tn, 10); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }); await wait(100);
+  await page.keyboard.press('Control+i'); await wait(150);
+  const html = await page.evaluate(() => document.getElementById('tfmt').innerHTML);
+  assert(/<(i|em)>beta<\/(i|em)>|font-style: italic[^>]*>beta</.test(html), 'Ctrl+I while typing did not italicise just the selected word: ' + html);
+  assert(await page.evaluate(() => __deckEditor.S.editing && __deckEditor.S.editing.id === 'tfmt'), 'shortcut ended editing');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
