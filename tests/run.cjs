@@ -440,6 +440,30 @@ test('video and audio: add a file with captions, a YouTube link, and both are sa
   assert(/<video[^>]*data-autoplay/.test(out) && out.includes('<track') && out.includes('youtube-nocookie.com/embed/'), 'media not saved');
 });
 
+test('pictures: crop keeps the rest in place, can be undone, and Compress shrinks oversized pictures', async page => {
+  await page.evaluate(() => { const D = __deckEditor; D.go(2); const cv = document.createElement('canvas'); cv.width = 400; cv.height = 200; const g = cv.getContext('2d'); g.fillStyle = '#E0407A'; g.fillRect(0, 0, 200, 200); g.fillStyle = '#2557D6'; g.fillRect(200, 0, 200, 200);
+    const im = document.createElement('img'); im.id = 'tcrop'; im.alt = 'Two colours'; im.src = cv.toDataURL('image/png'); im.style.cssText = 'position: absolute; left: 300px; top: 300px; width: 400px; height: 200px';
+    D.S.slides[2].querySelector(':scope > div').appendChild(im); D.commit('t'); D.setSel([im]); });
+  await page.waitForFunction(() => document.getElementById('tcrop').naturalWidth === 400);
+  assert(await page.isVisible('#pImage'), 'Picture panel not shown');
+  await page.click('#iCrop'); await page.waitForSelector('.crop-box');
+  const h = await (await page.$('.crop-box i[data-h="w"]')).boundingBox(); const w = await (await page.$('.crop-wrap')).boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down(); await page.mouse.move(w.x + w.width / 2, h.y + h.height / 2, { steps: 5 }); await page.mouse.up();
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Crop').click());
+  await page.waitForFunction(() => document.getElementById('tcrop').naturalWidth > 0 && document.getElementById('tcrop').naturalWidth < 260, null, { timeout: 5000 });
+  const r = await page.evaluate(() => { const i = document.getElementById('tcrop'); const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d'); g.drawImage(i, 0, 0); const px = g.getImageData(Math.floor(c.width / 2), 50, 1, 1).data; return { nw: i.naturalWidth, left: parseFloat(i.style.left), width: parseFloat(i.style.width), px: [...px].slice(0, 3) }; });
+  assert(Math.abs(r.nw - 200) <= 4 && Math.abs(r.left - 500) <= 3 && Math.abs(r.width - 200) <= 3, 'crop geometry wrong: ' + JSON.stringify(r));
+  assert(r.px[2] > 150 && r.px[0] < 80, 'kept the wrong half: ' + r.px);
+  await page.keyboard.press('Control+z'); await wait(150);
+  assert(await page.evaluate(() => document.getElementById('tcrop').naturalWidth === 400 && parseFloat(document.getElementById('tcrop').style.left) === 300), 'undo did not bring the whole picture back');
+  // compress: a 2000 px noisy photo shown at 200 px
+  await page.evaluate(() => { const D = __deckEditor; const cv = document.createElement('canvas'); cv.width = 2000; cv.height = 1200; const g = cv.getContext('2d'); const d = g.createImageData(2000, 1200); for (let i = 0; i < d.data.length; i += 4) { d.data[i] = (i * 7) % 255; d.data[i + 1] = (i * 13) % 255; d.data[i + 2] = (i * 3) % 255; d.data[i + 3] = 255; } g.putImageData(d, 0, 0);
+    const im = document.createElement('img'); im.id = 'tbig'; im.alt = 'Noise'; im.src = cv.toDataURL('image/png'); im.style.cssText = 'position: absolute; left: 50px; top: 50px; width: 200px; height: 120px'; D.S.slides[2].querySelector(':scope > div').appendChild(im); D.commit('t'); });
+  const before = await page.evaluate(() => document.getElementById('tbig').getAttribute('src').length);
+  await page.evaluate(() => __deckEditor.compressImages()); await page.waitForFunction(b => document.getElementById('tbig').getAttribute('src').length < b * 0.5, before, { timeout: 20000 });
+  assert(await page.evaluate(() => document.getElementById('tbig').naturalWidth <= 400), 'compressed picture is still bigger than twice its shown size');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

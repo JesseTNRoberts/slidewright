@@ -251,6 +251,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .progress{position:fixed;right:20px;bottom:56px;z-index:150;width:300px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
 .progress .pt{font-weight:600}.progress .track{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden}.progress .track i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 .progress .pl{font:12px var(--mono);color:var(--ink-3)}.progress button{align-self:flex-end}
+.crop-wrap{position:relative;align-self:center;max-width:100%;user-select:none;touch-action:none;background:repeating-conic-gradient(#e6e8ec 0 25%,#fff 0 50%) 0 0/16px 16px}
+.crop-wrap img{display:block;max-width:100%;max-height:60vh;pointer-events:none}
+.crop-box{position:absolute;box-shadow:0 0 0 9999px rgba(14,16,20,.55);outline:2px solid #fff;cursor:move}
+.crop-box i{position:absolute;width:14px;height:14px;background:#fff;border:2px solid #2557D6;border-radius:3px;box-sizing:border-box}
+.crop-wrap{overflow:hidden}
 .modal.wide{width:min(880px,100%)}.modal.xl{width:min(1100px,100%)}
 .modal select,.modal input[type=text],.modal input[type=password]{box-sizing:border-box;width:100%;height:32px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);color:var(--ink)}
 .modal textarea:not(.code){box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);color:var(--ink);resize:vertical}
@@ -515,6 +520,16 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div class="fld" id="mCapWrap"><span id="mCapLbl">Captions</span><div class="btnrow"><button class="btn" id="mCapAdd">Add captions (.vtt or .srt)…</button><button class="btn" id="mCapDel">Remove</button></div></div>
         <button class="btn" id="mPoster">Use this frame as the cover image</button>
         <p class="hint" id="mHint"></p>
+      </section>
+
+      <section class="pane" id="pImage" hidden>
+        <h3>Picture</h3>
+        <div class="grid2">
+          <button class="btn" id="iCrop">Crop…</button><button class="btn" id="iReplace">Replace…</button>
+          <button class="btn" id="iReset">Original shape</button><button class="btn" id="iFit">Fit the slide</button>
+        </div>
+        <button class="btn" id="iFill">Fill the slide (as a background)</button>
+        <p class="hint" id="iInfo"></p>
       </section>
 
       <section class="pane" id="pFill" hidden>
@@ -1258,6 +1273,7 @@ function syncInspector(){
   $('#pSlide').hidden=!none; $('#pGeom').hidden=none; $('#pArr').hidden=none;
   const isSvg=one&&one.tagName.toLowerCase()==='svg', isImg=one&&one.tagName==='IMG';
   $('#pText').hidden=!(one&&!isSvg&&!isImg)&&!(sel.length>1); $('#pFill').hidden=!(one&&!isImg&&!isSvg)&&!(sel.length>1);
+  $('#pImage').hidden=!isImg; if(isImg) syncImagePane(one);
   const isMedia=one&&isMediaEl(one); $('#pMedia').hidden=!isMedia; if(isMedia){ $('#pText').hidden=true; $('#pFill').hidden=true; }
   $('#pAlt').hidden=!one||(one&&one.tagName==='TABLE')||!!isMedia; $('#pBuild').hidden=!one; $('#pTable').hidden=!(one&&one.tagName==='TABLE');
   $('#alignLbl').textContent=sel.length>1?'Align to each other':'Align to slide'; $('#distRow').hidden=sel.length<3;
@@ -1414,7 +1430,7 @@ function menu(anchor,items){$$('.menu').forEach(m=>m.remove()); const m=document
   setTimeout(()=>{const off=e=>{if(!m.contains(e.target)){m.remove(); anchor.setAttribute('aria-expanded','false'); document.removeEventListener('pointerdown',off,true);}}; document.addEventListener('pointerdown',off,true);},0);
   m.addEventListener('keydown',e=>{const bs=$$('button',m); const i=bs.indexOf(document.activeElement); if(e.key==='ArrowDown'){e.preventDefault(); bs[(i+1)%bs.length].focus();} if(e.key==='ArrowUp'){e.preventDefault(); bs[(i-1+bs.length)%bs.length].focus();} if(e.key==='Escape'){m.remove(); anchor.focus();}});}
 $('#bShape').onclick=e=>menu(e.currentTarget,[['Rectangle',()=>insertShape('rect')],['Rounded box',()=>insertShape('round')],['Ellipse',()=>insertShape('ellipse')],['Label pill',()=>insertShape('label')],['Line',()=>insertShape('line')],['Arrow',()=>insertShape('arrow')]]);
-$('#bMore').onclick=e=>{const anchor=e.currentTarget; if(gdriveUsable()) gLoad().catch(()=>{}); menu(anchor,[['New blank deck',newDeck],['Save a copy to this computer…',()=>saveLocal(true),'Ctrl ⇧ S'],['Save a copy to Google Drive…',()=>saveToDrive(true)],[S.gh?'Commit to GitHub…':'Save a copy to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),...(S.gdrive?[['Google Drive versions…',driveHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),...(gTok?[['Sign out of Google Drive',signOutGoogle]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
+$('#bMore').onclick=e=>{const anchor=e.currentTarget; if(gdriveUsable()) gLoad().catch(()=>{}); menu(anchor,[['New blank deck',newDeck],['Save a copy to this computer…',()=>saveLocal(true),'Ctrl ⇧ S'],['Save a copy to Google Drive…',()=>saveToDrive(true)],[S.gh?'Commit to GitHub…':'Save a copy to GitHub…',()=>S.gh?commitToGitHub():saveToGitHub()],...(S.gh?[['Version history…',showHistory]]:[]),...(S.gdrive?[['Google Drive versions…',driveHistory]]:[]),['Compare with saved version',compareWithSaved],['Compare with another deck…',compareWithFile],['Compress pictures',compressImages],['Export PDF…',exportPDF],['Export handout with notes…',exportHandout],['Check accessibility…',runAudit],['Find and replace…',findReplace,'Ctrl F'],...(ghTok()?[['Sign out of GitHub',signOutGitHub]]:[]),...(gTok?[['Sign out of Google Drive',signOutGoogle]]:[]),['Keyboard shortcuts',shortcuts,'?']]);};
 $('#bText').onclick=()=>insertText();
 $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertImageFile(f);});
 $('#bAlt').onclick=()=>toggleAlt();
@@ -2864,6 +2880,63 @@ $('#mCapDel').onclick=()=>{ const m=mediaSel(); if(!m) return; m.querySelectorAl
 $('#mPoster').onclick=()=>{ const m=mediaSel(); if(!m||m.tagName!=='VIDEO') return; if(!m.videoWidth){ toast('Play the video to the frame you want first.'); return; }
   const cv=document.createElement('canvas'); const k=Math.min(1,1280/m.videoWidth); cv.width=Math.round(m.videoWidth*k); cv.height=Math.round(m.videoHeight*k); try{ cv.getContext('2d').drawImage(m,0,0,cv.width,cv.height); m.setAttribute('poster',cv.toDataURL('image/jpeg',0.85)); commit('Video cover'); toast('Cover image set.'); }catch(_){ toast('That video doesn’t allow taking a frame from it.','warn'); } };
 
+
+/* ======================= pictures: crop, size, compress ======================= */
+const imgOriginal=new WeakMap();   /* the uncropped picture, kept for this session so a crop can be undone or redone */
+function imgBytes(src){ return /^data:/.test(src||'')?Math.round((src.length-src.indexOf(',')-1)*0.75):0; }
+const fmtMB=b=>b>=1e6?(b/1e6).toFixed(1)+' MB':Math.max(1,Math.round(b/1e3))+' KB';
+function syncImagePane(im){ const b=imgBytes(im.getAttribute('src')); $('#iInfo').textContent=`${im.naturalWidth||'?'} × ${im.naturalHeight||'?'} pixels`+(b?`, ${fmtMB(b)} in the deck`:', linked')+'. Drag a corner to resize; Shift keeps the shape.'; $('#iReset').disabled=!im.naturalWidth; }
+const selImg=()=>{ const i=S.sel[0]; return i&&i.tagName==='IMG'?i:null; };
+$('#iReplace').onclick=()=>{ const i=selImg(); if(i) replaceImage(i); };
+$('#iReset').onclick=()=>{ const i=selImg(); if(!i||!i.naturalWidth) return; const w=parseFloat(getComputedStyle(i).width)||i.naturalWidth; i.style.height=Math.round(w*i.naturalHeight/i.naturalWidth)+'px'; commit('Original shape'); drawOverlay(); syncInspector(); };
+function placeRect(i,x,y,w,h){ const pr=i.parentElement===rootOf(curSec())?{x:0,y:0}:slideRect(i.parentElement); i.style.left=Math.round(x-pr.x)+'px'; i.style.top=Math.round(y-pr.y)+'px'; i.style.width=Math.round(w)+'px'; i.style.height=Math.round(h)+'px'; i.style.removeProperty('right'); i.style.removeProperty('bottom'); }
+$('#iFit').onclick=()=>{ const i=selImg(); if(!i||!i.naturalWidth) return; const a=i.naturalWidth/i.naturalHeight; let w=S.W, h=w/a; if(h>S.H){ h=S.H; w=h*a; } placeRect(i,(S.W-w)/2,(S.H-h)/2,w,h); i.style.objectFit='contain'; commit('Fit the slide'); drawOverlay(); syncInspector(); };
+$('#iFill').onclick=()=>{ const i=selImg(); if(!i) return; placeRect(i,0,0,S.W,S.H); i.style.objectFit='cover'; const p=i.parentElement; p.insertBefore(i,p.firstChild); commit('Fill the slide'); drawOverlay(); syncInspector(); toast('The picture now fills the slide behind everything else. Mark it decorative in Alt text if it’s only a backdrop.'); };
+function loadImg(src){ return new Promise((ok,bad)=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=()=>bad(new Error('That picture could not be read.')); im.src=src; }); }
+$('#iCrop').onclick=()=>{ const i=selImg(); if(i) cropImage(i); };
+async function cropImage(im){
+  endEdit(); const orig=imgOriginal.get(im)||im.getAttribute('src'); let src; try{ src=await loadImg(orig); }catch(e){ toast(e.message,'warn'); return; }
+  const NW=src.naturalWidth, NH=src.naturalHeight; if(!NW){ toast('That picture has no size to crop.','warn'); return; }
+  const prev=im.dataset.swCrop?im.dataset.swCrop.split(',').map(Number):[0,0,1,1]; let [x0,y0,x1,y1]=imgOriginal.has(im)?prev:[0,0,1,1]; let ratio=0;
+  const pic=el('img',{src:orig,alt:''}); const box=el('div',{class:'crop-box'}); ['nw','n','ne','e','se','s','sw','w'].forEach(k=>{ const h=el('i',{'data-h':k}); const L={n:'50%',s:'50%',e:'100%',w:'0',nw:'0',sw:'0',ne:'100%',se:'100%'}[k], T={e:'50%',w:'50%',n:'0',s:'100%',nw:'0',ne:'0',sw:'100%',se:'100%'}[k]; h.style.left=L; h.style.top=T; h.style.transform=`translate(${L==='0'?'0':L==='100%'?'-100%':'-50%'},${T==='0'?'0':T==='100%'?'-100%':'-50%'})`; h.style.cursor=k+'-resize'; box.appendChild(h); });
+  const wrap=el('div',{class:'crop-wrap'},pic,box); const info=el('span',{class:'hint'});
+  const draw=()=>{ box.style.left=x0*100+'%'; box.style.top=y0*100+'%'; box.style.width=(x1-x0)*100+'%'; box.style.height=(y1-y0)*100+'%'; info.textContent=`${Math.round((x1-x0)*NW)} × ${Math.round((y1-y0)*NH)} pixels kept`; };
+  const fix=(k)=>{ const mw=8/NW, mh=8/NH; x0=Math.max(0,Math.min(x0,1-mw)); y0=Math.max(0,Math.min(y0,1-mh)); x1=Math.min(1,Math.max(x1,x0+mw)); y1=Math.min(1,Math.max(y1,y0+mh));
+    if(ratio){ const want=ratio*NH/NW; let w=x1-x0, h=y1-y0; if(w/h>want){ w=h*want; if(/w/.test(k||'')) x0=x1-w; else x1=x0+w; } else { h=w/want; if(/n/.test(k||'')) y0=y1-h; else y1=y0+h; } if(x1>1){ x0-=x1-1; x1=1; } if(y1>1){ y0-=y1-1; y1=1; } x0=Math.max(0,x0); y0=Math.max(0,y0); } };
+  box.addEventListener('pointerdown',e=>{ e.preventDefault(); box.setPointerCapture(e.pointerId); const k=e.target.dataset.h||'move'; const r=wrap.getBoundingClientRect(); const s0=[x0,y0,x1,y1], px=e.clientX, py=e.clientY;
+    const mv=ev=>{ const dx=(ev.clientX-px)/r.width, dy=(ev.clientY-py)/r.height; [x0,y0,x1,y1]=s0;
+      if(k==='move'){ const w=x1-x0, h=y1-y0; x0=Math.max(0,Math.min(1-w,x0+dx)); y0=Math.max(0,Math.min(1-h,y0+dy)); x1=x0+w; y1=y0+h; }
+      else { if(/w/.test(k)) x0+=dx; if(/e/.test(k)) x1+=dx; if(/n/.test(k)) y0+=dy; if(/s/.test(k)) y1+=dy; fix(k); } draw(); };
+    const up=()=>{ box.removeEventListener('pointermove',mv); box.removeEventListener('pointerup',up); }; box.addEventListener('pointermove',mv); box.addEventListener('pointerup',up); });
+  const shapes=el('div',{class:'chips'},el('span',{class:'hint',text:'Shape:'}),...[['Free',0],['Original',NW/NH],['16:9',16/9],['4:3',4/3],['1:1',1]].map(([l,v])=>el('button',{type:'button',class:'btn',text:l,onclick:()=>{ ratio=v; fix('se'); draw(); }})));
+  draw(); const body=el('div',{class:'stack'},shapes,wrap,info,el('p',{class:'hint',text:'Drag the box or its handles. The part outside the box is removed from the deck; until you close the deck, Crop again can bring it back.'}));
+  const v=await modal('Crop picture',body,[['Cancel',null],...(imgOriginal.has(im)?[['Remove crop','reset']]:[]),['Crop','ok','primary']],{wide:true}); if(!v) return;
+  if(v==='reset'){ x0=0; y0=0; x1=1; y1=1; }
+  const keep=[x0,y0,x1,y1]; const was=im.dataset.swCrop?im.dataset.swCrop.split(',').map(Number):[0,0,1,1];
+  const r=slideRect(im); const sx=r.w/((was[2]-was[0])*NW), sy=r.h/((was[3]-was[1])*NH);
+  const cw=Math.max(1,Math.round((x1-x0)*NW)), ch=Math.max(1,Math.round((y1-y0)*NH)); const k=Math.min(1,2600/Math.max(cw,ch));
+  let url=orig; if(v!=='reset'){ const cv=document.createElement('canvas'); cv.width=Math.round(cw*k); cv.height=Math.round(ch*k); cv.getContext('2d').drawImage(src,x0*NW,y0*NH,cw,ch,0,0,cv.width,cv.height);
+    const png=/^data:image\/(png|gif|svg)/.test(orig); url=cv.toDataURL(png?'image/png':'image/jpeg',0.92); }
+  if(!imgOriginal.has(im)) imgOriginal.set(im,orig);
+  im.src=url; im.removeAttribute('srcset'); if(v==='reset'){ delete im.dataset.swCrop; imgOriginal.delete(im); } else im.dataset.swCrop=keep.map(n=>+n.toFixed(4)).join(',');
+  placeRect(im,r.x+(x0-was[0])*NW*sx,r.y+(y0-was[1])*NH*sy,(x1-x0)*NW*sx,(y1-y0)*NH*sy); im.style.objectFit='fill';
+  commit(v==='reset'?'Remove crop':'Crop picture'); drawOverlay(); syncInspector(); }
+/* Compress: re-encode pictures stored in the deck at no more than twice the largest size they're shown at. */
+async function compressImages(){
+  endEdit(); commit(); const imgs=S.slides.flatMap(s=>[...s.querySelectorAll('img')]).filter(i=>/^data:image\/(png|jpe?g|webp|bmp)/i.test(i.getAttribute('src')||''));
+  if(!imgs.length){ toast('There are no pictures stored in this deck to compress.'); return; }
+  const shown=new Map(); imgs.forEach(i=>{ const src=i.getAttribute('src'); const w=parseFloat(i.style.width)||i.offsetWidth||0, h=parseFloat(i.style.height)||i.offsetHeight||0; const p=shown.get(src)||{w:0,h:0,els:[]}; p.w=Math.max(p.w,w); p.h=Math.max(p.h,h); p.els.push(i); shown.set(src,p); });
+  const before=[...shown.keys()].reduce((a,s)=>a+imgBytes(s)*shown.get(s).els.length,0);
+  const prog=progressCard('Compressing pictures'); let n=0, after=0, changed=0;
+  for(const [src,p] of shown){ n++; prog.set(n/shown.size,`Picture ${n} of ${shown.size}`); await new Promise(r=>setTimeout(r,0)); let im; try{ im=await loadImg(src); }catch(_){ after+=imgBytes(src)*p.els.length; continue; }
+    const tw=Math.max(1,Math.round((p.w||im.naturalWidth)*2)), th=Math.max(1,Math.round((p.h||im.naturalHeight)*2)); const k=Math.min(1,Math.max(tw/im.naturalWidth,th/im.naturalHeight));
+    const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(im.naturalWidth*k)); cv.height=Math.max(1,Math.round(im.naturalHeight*k)); const g=cv.getContext('2d'); g.drawImage(im,0,0,cv.width,cv.height);
+    let alpha=false; if(/png|webp/i.test(src.slice(0,20))){ try{ const d=g.getImageData(0,0,cv.width,cv.height).data; for(let j=3;j<d.length;j+=4*7) if(d[j]<250){ alpha=true; break; } }catch(_){ alpha=true; } }
+    const out=alpha?cv.toDataURL('image/png'):cv.toDataURL('image/jpeg',0.85);
+    if(imgBytes(out)<imgBytes(src)*0.9){ p.els.forEach(i=>{ i.setAttribute('src',out); i.removeAttribute('srcset'); }); changed+=p.els.length; after+=imgBytes(out)*p.els.length; } else after+=imgBytes(src)*p.els.length; }
+  prog.close(); if(!changed){ toast('The pictures are already as small as they can usefully be.'); return; }
+  commit('Compress pictures'); drawOverlay(); syncInspector(); toast(`Compressed ${changed} picture${changed>1?'s':''}: ${fmtMB(before)} → ${fmtMB(after)}. Undo puts them back.`); }
+
 /* ======================= code slides ======================= */
 const CODE_THEMES={
   dark:{bg:'#16181D',fg:'#E8EAF0',kw:'#9DB6F2',str:'#F7CDB0',num:'#F2B25A',com:'#959BA8',fn:'#7FD9A6',dec:'#C9A2F2',ln:'#7E8595',hl:'rgba(137,163,255,0.20)',bar:'#89A3FF'},
@@ -2995,7 +3068,7 @@ if(location.hash==='#present'&&window.opener){
   ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
 }
 
-window.__deckEditor={ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 
