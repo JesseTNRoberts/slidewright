@@ -61,7 +61,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site
-          cp index.html auth.html _site/
+          cp index.html auth.html privacy.html _site/
           cp -r brand vendor _site/
           python3 tools/build_offline.py index.html _site/slidewright-offline.html
       - uses: actions/upload-pages-artifact@v3

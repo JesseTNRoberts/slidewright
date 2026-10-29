@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slidewright privacy policy</title>
+<link rel="icon" type="image/svg+xml" href="brand/slidewright-mark.svg">
+<style>
+:root{--bg:#FBFBFA;--fg:#16181D;--muted:#5A5F6B;--rule:#DADDE2;--link:#1B3F9E}
+@media (prefers-color-scheme:dark){:root{--bg:#16181D;--fg:#E8EAF0;--muted:#A3A8B4;--rule:#30343C;--link:#9DB6F2}}
+html{background:var(--bg);color:var(--fg)}
+body{margin:0;font:17px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:40px 16px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+header img{width:48px;height:48px}
+h1{font-size:30px;line-height:1.2;margin:0}
+h2{font-size:20px;margin:32px 0 8px;padding-top:16px;border-top:1px solid var(--rule)}
+p,li{margin:0 0 10px}
+ul{padding-left:22px}
+a{color:var(--link)}
+.meta{color:var(--muted);font-size:15px}
+code{font-size:15px}
+</style>
+</head>
+<body>
+<main>
+<header><img src="brand/slidewright-mark.svg" alt=""><h1>Slidewright privacy policy</h1></header>
+<p class="meta">Effective October 29, 2026. Slidewright is made by Jesse Roberts.</p>
+
+<p>Slidewright is a slide deck editor that runs entirely in your web browser at <a href="https://www.jessetnroberts.com/slidewright/">www.jessetnroberts.com/slidewright</a>. There is no Slidewright account and no Slidewright server that receives your slides. This page explains what Slidewright reads, where it keeps things, and who else is involved.</p>
+
+<h2>Your decks</h2>
+<p>Decks you open are read and edited in your browser. Slidewright does not upload them anywhere except to the place you choose when you save, which is your computer, your Google Drive or your GitHub repository.</p>
+<p>When you click <b>Present with Slidewright</b> on a deck, the deck sends its own contents to the Slidewright page in your browser. Nothing is sent to a server.</p>
+
+<h2>Google Drive</h2>
+<p>If you choose to open from or save to Google Drive, Slidewright asks Google for permission to use the <code>drive.file</code> scope. With it, Slidewright can see and change <b>only the files you pick in Google's file picker or create with Slidewright</b>. It cannot list, read or change anything else in your Drive.</p>
+<p>Slidewright uses that access only to</p>
+<ul>
+<li>download the deck you picked so you can edit or present it,</li>
+<li>save your changes back to that file, or create a new file in the folder you pick,</li>
+<li>read the file's name, version and earlier versions so you can compare or restore them.</li>
+</ul>
+<p>The access token Google issues is kept only in the memory of the open page. It is not written to disk, it is not sent to any server other than Google's, and it expires after about an hour. Choosing <b>Sign out of Google Drive</b> revokes it. You can also remove Slidewright's access at any time at <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a>.</p>
+<p>Slidewright does not store, share, sell or transfer Google user data, does not use it for advertising, and does not use it to train AI or machine learning models. Slidewright's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+<h2>GitHub</h2>
+<p>If you sign in with GitHub, a small sign-in relay run by Slidewright on Cloudflare Workers exchanges GitHub's one-time code for an access token and hands the token straight back to your browser. The relay does not store or log the token. You can also paste a personal access token instead.</p>
+<p>The GitHub token is saved in your browser's local storage so you stay signed in, and it is sent only to GitHub. <b>Sign out of GitHub</b> in Slidewright removes it, and you can revoke Slidewright at <a href="https://github.com/settings/applications">github.com/settings/applications</a>.</p>
+
+<h2>What stays in your browser</h2>
+<ul>
+<li>A recovery copy of the deck you are editing, so a crash or closed tab doesn't lose your work.</li>
+<li>The list of recently opened files (in Chrome and Edge).</li>
+<li>Your GitHub token, if you signed in, and a note of which GitHub Pages sites match which repositories.</li>
+</ul>
+<p>These live only in your browser on your device. Clearing this site's data in your browser removes them.</p>
+
+<h2>Other services your browser contacts</h2>
+<ul>
+<li><b>GitHub Pages</b> hosts Slidewright, and like any web host it receives standard request information such as your IP address.</li>
+<li><b>Google</b> receives requests when you use Google Drive (sign-in, the file picker and the Drive API), and when a deck or page loads fonts from Google Fonts.</li>
+<li><b>GitHub</b> receives requests when you use GitHub features.</li>
+</ul>
+<p>Slidewright itself uses no analytics, no advertising and no tracking cookies.</p>
+
+<h2>Children</h2>
+<p>Slidewright is a tool for teachers and presenters and is not directed at children under 13.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be posted here with a new effective date. The history of this page is public in the <a href="https://github.com/JesseTNRoberts/slidewright">Slidewright repository</a>.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy can be sent to Jesse Roberts at <a href="mailto:jesse.tn.roberts@gmail.com">jesse.tn.roberts@gmail.com</a>.</p>
+</main>
+</body>
+</html>
