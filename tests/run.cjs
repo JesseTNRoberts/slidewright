@@ -200,20 +200,23 @@ test('Google Drive: open, save back, and save a copy (Google mocked)', async (_,
     if (m === 'GET') return json({ id: 'deck1', name: 'drive-deck.html', version, parents: ['folderA'] });
     if (u.searchParams.get('uploadType') === 'resumable') { const meta = JSON.parse(q.postData() || '{}'); if (m === 'POST') seen.creates.push(meta);
       return r.fulfill({ status: 200, headers: Object.assign({ location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=' + (m === 'POST' ? 'new' : 'deck1') }, cors), body: '' }); }
-    if (m === 'PUT') { const id = u.searchParams.get('upload_id'); seen.puts.push({ id, body: q.postData() }); version = String(+version + 1);
+    if (m === 'PUT') { const id = u.searchParams.get('upload_id'); seen.puts.push({ id }); version = String(+version + 1);
       return json(id === 'new' ? { id: 'deck2', name: seen.creates[0].name, version: '1', parents: seen.creates[0].parents } : { id: 'deck1', name: 'drive-deck.html', version, parents: ['folderA'] }); }
     r.fulfill({ status: 404, headers: cors, body: '{}' });
   });
   const page = await openEditor(ctx);
-  await page.evaluate(() => { window.__pick = { id: 'deck1', name: 'drive-deck.html' }; });
+  // Record upload bodies in the page (WebKit does not hand Blob bodies to Playwright's route handler).
+  await page.evaluate(() => { window.__puts = []; const f = window.fetch; window.fetch = async (u, o) => { if (o && o.method === 'PUT') window.__puts.push(await new Response(o.body).text()); return f(u, o); };
+    window.__pick = { id: 'deck1', name: 'drive-deck.html' }; });
   await page.evaluate(() => __deckEditor.gdrive.openFromDrive());
   await page.waitForFunction(() => __deckEditor.gdrive.state() && __deckEditor.S.slides.length === 5, null, { timeout: 15000 });
   assert((await page.textContent('#fileName')).includes('Drive: drive-deck.html'), 'file name does not show Drive');
   await page.evaluate(() => { const h = __deckEditor.S.slides[0].querySelector('h1,h2,[data-title],div div'); h.textContent += ' DRIVEEDIT'; __deckEditor.commit('t'); });
   await page.keyboard.press('Control+s');
   await page.waitForFunction(() => !__deckEditor.S.dirty, null, { timeout: 15000 });
-  assert(seen.puts.length === 1 && seen.puts[0].id === 'deck1' && seen.puts[0].body.includes('DRIVEEDIT'), 'save did not upload the edited deck to the same file');
-  assert((seen.puts[0].body.match(/<section/g) || []).length === 5, 'uploaded deck lost slides');
+  const put = await page.evaluate(() => window.__puts[0] || '');
+  assert(seen.puts.length === 1 && seen.puts[0].id === 'deck1' && put.includes('DRIVEEDIT'), 'save did not upload the edited deck to the same file');
+  assert((put.match(/<section/g) || []).length === 5, 'uploaded deck lost slides');
   await page.evaluate(() => { window.__pick = { id: 'folderB', name: 'Lectures' }; });
   await page.evaluate(() => __deckEditor.gdrive.saveToDrive(true));
   await page.waitForFunction(() => __deckEditor.gdrive.state().id === 'deck2', null, { timeout: 15000 });
