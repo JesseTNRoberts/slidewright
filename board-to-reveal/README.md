@@ -40,6 +40,17 @@ Saving from there: if the deck knows its GitHub file (`--source`), Save commits 
 
 For a deck exported earlier, `node add-extras.js deck.html [out.html] [--source=…]` adds just the button.
 
+## Bring Slidewright edits back to the board
+
+Export with `--board=<the board's claude.ai address>`: every slide then records the board slide it came from. After the deck has been edited in Slidewright (and maybe given notes to Claude):
+
+```
+node diff.js baseline.html edited.html          # a readable report, slide by slide
+node diff.js baseline.html edited.html --json   # the same as data
+```
+
+`baseline.html` is the export the edits started from (or a fresh export of the board if it hasn't changed since). The report lists, per board slide: notes to Claude, text changes, position / size / style changes, attribute and click-build changes, removed and added items, speaker notes, slides hidden, deleted, added or reordered. Claude applies each one to the board with the smallest matching edit, and treats the notes as requests. In Slidewright, **Review → Send to Claude** saves the deck to Google Drive or GitHub and opens a Claude chat asking for exactly that.
+
 ## What students get
 
 - **Download slides as PDF** on the title slide: the PDF is made in their browser and downloads directly, one slide-sized page per slide, each slide as it looks after its last click.
@@ -68,6 +79,7 @@ The converter reads each slide's own script, so slides look the same as on the b
 - `build.js`: the converter
 - `extras.js`: the PDF button, copyright line and print layout added to every deck
 - `add-extras.js`: adds those extras to a deck exported before 1.5
+- `diff.js`: what changed between an export and the same deck edited in Slidewright (see above)
 - `verify.js`: the checks used by `--check`
 - `COVERAGE.md`: board patterns the converter supports, with a changelog
 - `test-board/`: a small board with one slide per supported pattern, built and opened in Slidewright by `../tests/builder.cjs`

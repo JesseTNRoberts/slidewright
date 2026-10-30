@@ -149,7 +149,7 @@ $('#sNotes').addEventListener('change',e=>{const sec=curSec(); let n=sec.querySe
 $('#dTitle').addEventListener('change',e=>{if(!S.doc) return; S.doc.title=e.target.value; S.dirty=true; updateFileName(); scheduleAutosave(); toast('Deck title updated.');});
 
 /* ======================= modals, toasts ======================= */
-function toast(msg,kind,action){const t=document.createElement('div'); t.className='toast'+(kind==='warn'?' warn':''); const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
+function toast(msg,kind,action){$$('#toasts .toast').forEach(o=>{if(o.firstChild&&o.firstChild.textContent===msg) o.remove();}); const t=document.createElement('div'); t.className='toast'+(kind==='warn'?' warn':''); const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
   if(action){const b=document.createElement('button'); b.textContent=action.label; b.onclick=()=>{action.fn(); t.remove();}; t.appendChild(b);}
   $('#toasts').appendChild(t); setTimeout(()=>t.remove(),action?9000:3800);}
 function modal(title,body,buttons,opts){return new Promise(res=>{const bg=document.createElement('div'); bg.className='modal-bg'; const m=document.createElement('div'); m.className='modal'+(opts&&opts.wide?' wide':''); m.setAttribute('role','dialog'); m.setAttribute('aria-modal','true');

@@ -37,6 +37,7 @@ The converter that writes these decks lives in [`board-to-reveal/`](../board-to-
 | `<div class="fragment step-trigger" aria-hidden="true">` | An empty click that only moves `data-pos` items |
 | `data-build-dot` and `data-track` on SVG circles | A marker that moves along a plot, one point per click |
 | CSS `@keyframes` named `sN-…` in the deck's `<style>`, inline `animation:` on items | Animations that play on their click |
+| `data-board-slide="Name.dc.html"` on each `<section>`, `<meta name="slidewright-board">` and `<meta name="slidewright-board-export">` | Which board, and which board slide, each slide came from; `board-to-reveal/diff.js` uses them to bring Slidewright edits back to the board |
 | `data-live="N"` on a `<section>`, `data-lv='[[attribute, template],…]'` on items, and a `<script>` that sets `window.__LIVE` | Time-driven animation: the slide's own component runs while the slide is shown and rewrites those attributes; the attribute values saved in the file are the resting state |
 
 ## Decks converted from PowerPoint
@@ -50,6 +51,7 @@ The converter that writes these decks lives in [`board-to-reveal/`](../board-to-
 - `<span class="sw-math" data-latex="…">` with MathML for equations in decks without KaTeX; in decks with KaTeX, equations stay as `\( … \)` text.
 - `<pre class="sw-code">` for code blocks, with `.sw-codehl fragment current-visible` highlight bands.
 - `<meta name="slidewright-source">` when the deck was opened from or committed to GitHub.
+- `<aside class="sw-claude-notes" hidden aria-hidden="true">` inside a slide, one `<p>` per note to Claude; a note about one item has `data-on="nK"`, and that item carries `data-claude-note="nK"`. Hidden, so it never shows when presenting, in thumbnails or in the PDF.
 - `<script type="application/json" id="slidewright-styles">` in `<head>` if you save custom text styles.
 
 Everything else, including the deck's scripts, fonts and reveal.js, is written back unchanged.

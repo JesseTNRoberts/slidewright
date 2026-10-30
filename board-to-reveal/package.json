@@ -1,6 +1,6 @@
 {
   "name": "board-to-reveal",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "description": "Convert a Design art-board lecture deck into one self-contained reveal.js HTML file.",
   "bin": {
@@ -15,7 +15,8 @@
     "@fontsource/ibm-plex-mono": "5.0.12",
     "@fontsource/ibm-plex-sans": "5.0.20",
     "adm-zip": "0.5.14",
-    "katex": "0.16.9"
+    "katex": "0.16.9",
+    "linkedom": "^0.18.5"
   },
   "optionalDependencies": {
     "axe-core": "4.9.1",

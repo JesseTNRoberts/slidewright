@@ -1,6 +1,6 @@
 // build.js — turn a Design-board lecture deck into ONE self-contained reveal.js file.
 //
-// Usage: node build.js <project-dir> <out.html> [--copyright="Name"] [--year=YYYY] [--no-copyright] [--no-pdf]
+// Usage: node build.js <project-dir> <out.html> [--copyright="Name"] [--year=YYYY] [--no-copyright] [--no-pdf] [--board=<board artifact URL>]
 //   <project-dir> holds canvas.json and the *.dc.html slides (as saved by an Artifact read).
 //
 // What it handles, with no per-deck code:
@@ -360,7 +360,7 @@ order.forEach((file, n) => {
   const isFirst = file === firstVisible;
   const extra = (isFirst && OPT.pdf ? '\n' + extras.BUTTON : '') + (OPT.copyright ? '\n' + extras.copyright(isFirst ? 1 : N + 1, OPT.holder, OPT.year) : '');
   const hid = isHidden(file);
-  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '"' + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
+  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '" data-board-slide="' + esc(file) + '"' + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
 });
 
 // ---------- assets ----------
@@ -492,6 +492,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${extras.sourceMeta(OPT.source)}
+${extras.boardMeta(OPT.board, require('./package.json').version)}
 <title>${esc(canvas.title || 'Lecture')}</title>
 <style>
 ${fontCss('ibm-plex-sans', ['300', '400', '500', '600'])}${fontCss('ibm-plex-mono', ['400', '500'])}
