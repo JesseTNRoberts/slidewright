@@ -457,7 +457,7 @@ test('pictures: crop keeps the rest in place, can be undone, and Compress shrink
   await page.keyboard.press('Control+z'); await wait(150);
   assert(await page.evaluate(() => document.getElementById('tcrop').naturalWidth === 400 && parseFloat(document.getElementById('tcrop').style.left) === 300), 'undo did not bring the whole picture back');
   // compress: a 2000 px noisy photo shown at 200 px
-  await page.evaluate(() => { const D = __deckEditor; const cv = document.createElement('canvas'); cv.width = 2000; cv.height = 1200; const g = cv.getContext('2d'); const d = g.createImageData(2000, 1200); for (let i = 0; i < d.data.length; i += 4) { d.data[i] = (i * 7) % 255; d.data[i + 1] = (i * 13) % 255; d.data[i + 2] = (i * 3) % 255; d.data[i + 3] = 255; } g.putImageData(d, 0, 0);
+  await page.evaluate(() => { const D = __deckEditor; const cv = document.createElement('canvas'); cv.width = 2000; cv.height = 1200; const g = cv.getContext('2d'); const d = g.createImageData(2000, 1200); for (let i = 0; i < d.data.length; i += 4) { d.data[i] = Math.random() * 255; d.data[i + 1] = Math.random() * 255; d.data[i + 2] = Math.random() * 255; d.data[i + 3] = 255; } g.putImageData(d, 0, 0);
     const im = document.createElement('img'); im.id = 'tbig'; im.alt = 'Noise'; im.src = cv.toDataURL('image/png'); im.style.cssText = 'position: absolute; left: 50px; top: 50px; width: 200px; height: 120px'; D.S.slides[2].querySelector(':scope > div').appendChild(im); D.commit('t'); });
   const before = await page.evaluate(() => document.getElementById('tbig').getAttribute('src').length);
   await page.evaluate(() => __deckEditor.compressImages());
