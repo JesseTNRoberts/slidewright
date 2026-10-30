@@ -513,6 +513,8 @@ test('click effects and slide transitions: chosen in the panels, previewed, save
   await page.keyboard.press('p'); await wait(1400); /* the fly-in item has a slow (1.2 s) transition */
   const op = id => page.evaluate(id => getComputedStyle(document.getElementById(id)).opacity, id);
   assert(await op('tfxb') === '1', 'exit item hidden before its click');
+  // a slow CI machine may still be finishing the 1.2 s fade out of the editing view: wait for it, up to 5 s
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('tfxa')).opacity === '0', null, { timeout: 5000 }).catch(() => {});
   assert(await op('tfxa') === '0', 'fly-in item visible before its click');
   for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowRight'); await wait(500); if (await op('tfxb') === '0') break; }
   assert(await op('tfxb') === '0', 'exit item still visible after its click');
