@@ -24,9 +24,10 @@ async function noteDialog(title, text, canDelete){
   return v === 'ok' ? { text: ta.value.trim() } : v === 'del' ? { del: true } : null;
 }
 
-async function addClaudeNote(){
+// target: an item, null for the slide, or left out to use the selection (one item) or else the slide
+async function addClaudeNote(target){
   const sec = curSec(); if(!sec) return; endEdit();
-  const target = S.sel.filter(e => e.isConnected).length === 1 ? S.sel[0] : null;
+  if(target === undefined || (target && !(target instanceof Element))) target = S.sel.filter(e => e.isConnected).length === 1 ? S.sel[0] : null;
   const r = await noteDialog(target ? 'Note to Claude about this item' : 'Note to Claude about this slide', '', false);
   if(!r || !r.text) return;
   const box = notesBox(sec, true), p = document.createElement('p');
@@ -110,6 +111,16 @@ async function sendToClaude(){
   const w = window.open('https://claude.ai/new?q=' + encodeURIComponent(text), '_blank', 'noopener');
   toast(w === null ? 'Your browser blocked the new tab. The request is on your clipboard: paste it into a new Claude chat.' : 'Opened Claude with your request (also on your clipboard).');
 }
+
+/* right-click a slide in the list: note to Claude about that slide */
+$('#slideList').addEventListener('contextmenu', e => {
+  const li = e.target.closest('#slideList > li'); if(!li) return; e.preventDefault();
+  const i = [...$('#slideList').children].indexOf(li); if(i < 0) return; go(i);
+  ctxMenu(e.clientX, e.clientY, [['Note to Claude about this slide…', () => addClaudeNote(null)], '-',
+    ['Duplicate slide', () => $('#sDup').click()], S.slides.length > 1 ? ['Delete slide', () => $('#sDel').click(), null, 'danger'] : null]);
+});
+/* right-click a note pin: edit it */
+overlay.addEventListener('contextmenu', e => { const pin = e.target.closest('.sw-note-pin'); if(!pin) return; e.preventDefault(); e.stopPropagation(); pin.click(); }, true);
 
 renderNoteCount();
 if(window.__deckEditor) Object.assign(window.__deckEditor, { addClaudeNote, sendToClaude, claudeRequest, deckLink });
