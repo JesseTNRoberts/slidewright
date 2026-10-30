@@ -94,7 +94,7 @@ function wordDiff(a,b){const A=a.split(' '),B=b.split(' '); if(A.length*B.length
   segs.forEach((g,n)=>{ if(g.k!=='same'){out.append(el(g.k,{text:g.w.join(' ')+' '})); return;} let w=g.w; if(w.length>12){const first=n===0, last=n===segs.length-1; w=first?['…',...w.slice(-5)]:last?[...w.slice(0,5),'…']:[...w.slice(0,5),'…',...w.slice(-5)];} out.append(document.createTextNode(w.join(' ')+' ')); });
   return out;}
 function compareDecks(otherHTML,label){
-  const od=new DOMParser().parseFromString(otherHTML,'text/html'); let os=$$('.reveal .slides > section',od); if(!os.length) os=$$('section',od).filter(s=>!(s.parentElement&&s.parentElement.closest('section')));
+  const od=new DOMParser().parseFromString(otherHTML,'text/html'); defang(od.body); let os=$$('.reveal .slides > section',od); if(!os.length) os=$$('section',od).filter(s=>!(s.parentElement&&s.parentElement.closest('section')));
   if(!os.length){toast('That file has no slides to compare.','warn');return;}
   os=os.map(s=>document.importNode(s,true)); const ns=S.slides;
   const key=s=>(s.getAttribute('data-title')||normText(s.textContent).slice(0,60));

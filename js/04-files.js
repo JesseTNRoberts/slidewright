@@ -8,7 +8,7 @@ async function openFile(){if(!(await confirmDiscard())) return;
   $('#fileDeck').value=''; $('#fileDeck').click();}
 $('#fileDeck').onchange=async e=>{const f=e.target.files&&e.target.files[0]; if(!f) return; if(isPptx(f)) importPptx(f); else openText(await f.text(),f.name,null);};
 function openText(text,name,handle){toast('Opening '+name+'…'); setTimeout(()=>{if(loadHTML(text,name,handle)) toast(`Opened ${name}: ${S.slides.length} slide${S.slides.length>1?'s':''}.`);},30);}
-function savedClone(s,doc){ doc=doc||document; const c=doc.importNode(s,true);
+function savedClone(s,doc){ doc=doc||document; const c=doc.importNode(s,true); undefang(c);
   c.querySelectorAll('.sw-math[data-sw-delim]').forEach(m=>{const d=m.getAttribute('data-sw-delim')==='display'; m.replaceWith(doc.createTextNode((d?'\\[':'\\(')+m.getAttribute('data-latex')+(d?'\\]':'\\)')));});
   c.querySelectorAll('[contenteditable],.de-shown,.de-cur').forEach(m=>{if(m.classList.contains('sw-math')||m.getAttribute('contenteditable')) m.removeAttribute('contenteditable'); m.classList.remove('de-shown','de-cur'); if(!m.getAttribute('class')) m.removeAttribute('class');});
   return c; }
@@ -59,13 +59,17 @@ window.addEventListener('drop',async e=>{if(dragIdx!=null) return; dragDepth=0; 
 /* ======================= present ======================= */
 function present(){
   if(!S.doc) return; endEdit(); const html=presentHTML({toolbar:true}); const wrap=document.createElement('div'); wrap.id='present';
-  const fr=document.createElement('iframe'); fr.title='Presentation'; fr.setAttribute('allow','fullscreen');
+  const fr=document.createElement('iframe'); fr.title='Presentation'; fr.setAttribute('allow','fullscreen; autoplay'); fr.setAttribute('sandbox',DECK_SANDBOX);
   const cl=document.createElement('button'); cl.className='tb close'; cl.style.cssText='background:#fff;color:#000'; cl.textContent='Close (Esc twice)';
-  const close=()=>{wrap.remove(); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); document.removeEventListener('keydown',kd,true); stageScroll.focus();};
-  let lastEsc=0; const kd=e=>{if(e.key==='Escape'){const t=Date.now(); if(t-lastEsc<600) close(); lastEsc=t;}};
+  const B=deckBridge(fr,window);
+  const close=()=>{B.close(); wrap.remove(); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); document.removeEventListener('keydown',kd,true); window.removeEventListener('resize',ask); stageScroll.focus();};
+  let lastEsc=0; const esc=()=>{const t=Date.now(); if(t-lastEsc<600) close(); lastEsc=t;}; const kd=e=>{if(e.key==='Escape') esc();};
   cl.onclick=close; wrap.append(fr,cl); document.body.appendChild(wrap); document.addEventListener('keydown',kd,true);
-  const i=S.cur, li=layerIndex(curSec());
-  fr.addEventListener('load',()=>{try{const w=fr.contentWindow; const t0=Date.now(); const tick=()=>{if(w.Reveal&&w.Reveal.isReady&&w.Reveal.isReady()){w.Reveal.slide(i,li>0?li-1:undefined); fr.focus(); w.addEventListener('keydown',kd,true);} else if(Date.now()-t0<10000) setTimeout(tick,120); else toast('The deck’s own player didn’t start here. Save the file and open it in your browser to present.','warn');}; tick();}catch(_){} });
+  const i=S.cur, li=layerIndex(curSec()); const t0=Date.now();
+  B.on('ready',()=>{ B.R.slide(i,0,li>0?li-1:undefined); fr.focus(); B.send('focus'); });
+  B.on('key',k=>{ if(k==='Escape') esc(); else if(k==='f'){ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); else if(wrap.requestFullscreen) wrap.requestFullscreen().catch(()=>{}); } });
+  B.on('embeds',items=>embedOverlays(document,wrap,fr,items)); const ask=()=>B.send('hello'); window.addEventListener('resize',ask);
+  setTimeout(()=>{ if(!B.st.ready&&wrap.isConnected) toast('The deck’s own player didn’t start here. Save the file and open it in your browser to present it.','warn'); },10000+0*t0);
   fr.srcdoc=html; if(wrap.requestFullscreen) wrap.requestFullscreen().catch(()=>{});
 }
 

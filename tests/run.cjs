@@ -20,6 +20,8 @@ const server = http.createServer((q, r) => {
 const tests = []; const test = (name, fn) => tests.push({ name, fn });
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// The audience window holds the deck in a sealed (sandboxed) frame; tests talk to that frame.
+const deckFrame = async w => (await w.waitForSelector('#deck', { state: 'attached' })).contentFrame();
 let BASE, browser;
 
 async function openEditor(ctx) {
@@ -151,7 +153,7 @@ test('present: pen strokes stay with their slide', async page => {
 test('presenter view drives the audience window and mirrors ink', async (page, ctx) => {
   const pop = ctx.waitForEvent('page');
   await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Presenter view/.test(b.textContent)).click());
-  const aw = await pop; await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(600);
+  const aw = await deckFrame(await pop); await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(600);
   await page.keyboard.press('d');
   const b = await (await page.$('.pv-cur')).boundingBox();
   await page.mouse.move(b.x + b.width * 0.3, b.y + b.height * 0.4); await page.mouse.down();
@@ -296,7 +298,7 @@ test('presenter view: audience on the external display, presenter on the built-i
   });
   let pop = ctx.waitForEvent('page');
   await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Presenter view/.test(b.textContent)).click());
-  let aw = await pop; await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(500);
+  let aw = await deckFrame(await pop); await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(500);
   let st = await page.evaluate(() => ({ opens: window.__opens, fs: window.__fs }));
   assert(/left=1920/.test(st.opens[0]) && /fullscreen/.test(st.opens[0]), 'audience not placed on the projector: ' + st.opens[0]);
   assert(st.fs[0] === 'Built-in Retina Display', 'presenter view not full screen on the built-in display: ' + st.fs);
@@ -304,7 +306,7 @@ test('presenter view: audience on the external display, presenter on the built-i
   const display = () => page.evaluate(() => [...document.querySelectorAll('#presenter .btn')].find(b => /Display/.test(b.textContent)).click());
   const pick = re => page.evaluate(src => [...document.querySelectorAll('.menu button')].find(b => new RegExp(src).test(b.textContent)).click(), re);
   await display(); pop = ctx.waitForEvent('page'); await pick('^Swap displays');
-  aw = await pop; await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady() && Reveal.getIndices().h === 1, null, { timeout: 20000 }); await wait(500);
+  aw = await deckFrame(await pop); await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady() && Reveal.getIndices().h === 1, null, { timeout: 20000 }); await wait(500);
   st = await page.evaluate(() => ({ opens: window.__opens, fs: window.__fs }));
   assert(/left=0,/.test(st.opens[1]), 'swap did not move the audience to the built-in display: ' + st.opens[1]);
   assert(st.fs[st.fs.length - 1] === 'Projector', 'swap did not move presenter view to the projector: ' + st.fs);
@@ -521,6 +523,38 @@ test('PowerPoint converter also runs from the command line', async () => {
   require('child_process').execFileSync(process.execPath, [path.join(ROOT, 'pptx/convert.cjs'), path.join(__dirname, 'fixtures/sample.pptx'), out], { stdio: 'pipe' });
   const h = fs.readFileSync(out, 'utf8');
   assert((h.match(/<section/g) || []).length === 7 && h.includes('class="sw-present"') && h.includes('Reveal.initialize'), 'CLI output incomplete');
+});
+
+test('security: a presented deck is sealed off from Slidewright (no storage, no page access)', async page => {
+  await page.evaluate(() => { try { localStorage.setItem('slidewright.ghToken', 'secret-token'); } catch (_) {} });
+  await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Present here/.test(b.textContent)).click());
+  const fr = await (await page.waitForSelector('#present iframe')).contentFrame(); await fr.waitForFunction(() => window.Reveal && Reveal.isReady(), null, { timeout: 20000 });
+  const r = await fr.evaluate(() => { const out = { origin: location.origin }; try { out.ls = localStorage.getItem('slidewright.ghToken'); } catch (e) { out.ls = 'blocked'; }
+    try { out.parent = String(!!parent.document); } catch (e) { out.parent = 'blocked'; } try { out.cookie = document.cookie; } catch (e) { out.cookie = 'blocked'; } return out; });
+  assert(r.origin === 'null' && r.ls === 'blocked' && r.parent === 'blocked', 'presented deck can reach Slidewright: ' + JSON.stringify(r));
+  // the deck can still be driven (slide navigation through the bridge)
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+});
+
+test('security: scripts in a deck being edited do not run, and are kept on save', async page => {
+  const evil = fs.readFileSync(SAMPLE, 'utf8').replace('<section', '<section><div style="position:absolute;left:0;top:0;width:10px;height:10px"><img src="x:none" onerror="window.__pwned=1" alt="x"><svg><a xlink:href="javascript:window.__pwned=2"><text>t</text></a></svg><iframe srcdoc="<script>parent.__pwned=3<\/script>"></iframe></div></section><section');
+  const f = path.join(require('os').tmpdir(), 'sw-evil.html'); fs.writeFileSync(f, evil);
+  await page.setInputFiles('#fileDeck', f); await page.waitForFunction(() => __deckEditor.S.name === 'sw-evil.html'); await wait(800);
+  assert(await page.evaluate(() => window.__pwned === undefined), 'a script in the deck ran inside Slidewright');
+  const out = await page.evaluate(() => __deckEditor.serialize());
+  assert(out.includes('onerror="window.__pwned=1"') && out.includes('srcdoc=') && /href="javascript:window.__pwned=2"/.test(out) && !out.includes('data-sw-x-'), 'saved deck lost or mangled its own handlers');
+});
+
+test('embedded YouTube videos play from Slidewright over the sealed deck while their slide shows', async page => {
+  await page.evaluate(() => { const D = __deckEditor; D.go(2); const e = document.createElement('div'); e.className = 'sw-embed'; e.style.cssText = 'position: absolute; left: 300px; top: 200px; width: 640px; height: 360px; background: #000';
+    const f = document.createElement('iframe'); f.setAttribute('data-src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0'); f.title = 'Demo'; e.appendChild(f); D.S.slides[2].querySelector(':scope > div').appendChild(e); D.commit('t'); });
+  await page.route(/youtube-nocookie\.com/, r => r.fulfill({ status: 200, contentType: 'text/html', body: '<p>player</p>' }));
+  await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Present here/.test(b.textContent)).click());
+  await page.waitForSelector('#present iframe.sw-ov', { timeout: 15000 });
+  const ov = await page.evaluate(() => { const o = document.querySelector('#present iframe.sw-ov'); return { src: o.src, w: o.getBoundingClientRect().width, sandboxed: o.hasAttribute('sandbox') }; });
+  assert(/youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/.test(ov.src) && ov.w > 100, 'overlay player wrong: ' + JSON.stringify(ov));
+  const fr = await (await page.$('#present iframe:not(.sw-ov)')).contentFrame(); await fr.evaluate(() => Reveal.slide(1)); await wait(800);
+  assert(!(await page.$('#present iframe.sw-ov')), 'video kept playing after leaving its slide');
 });
 
 /* ---------------------------------------------------------------- runner */

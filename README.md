@@ -77,4 +77,7 @@ The Slidewright name and the wheel logo belong to Jesse Roberts and aren't cover
 
 ## Privacy
 
+Decks you open can't run code against your accounts: see [`docs/SECURITY.md`](docs/SECURITY.md).
+
+
 Slidewright runs in your browser and keeps no copy of your decks. See the [privacy policy](https://www.jessetnroberts.com/slidewright/privacy.html) ([source](privacy.html)).

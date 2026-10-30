@@ -63,22 +63,28 @@ async function presenterView(){
   if(!S.doc) return; endEdit(); commit(); if(PV.on) stopPreview();
   let sd=await screenDetails(true); let place=pickScreens(sd);
   const ov=el('div',{id:'presenter',role:'dialog','aria-label':'Presenter view'}); document.body.appendChild(ov);
-  let aw=null, swapping=false, dup=false;
+  let aw=null, B=null, swapping=false, dup=false;
+  /* The audience window is a plain page of ours holding the deck in a sealed (sandboxed) frame. */
   const openAudience=(scr,state)=>{ let feat='popup,width=1280,height=760';
     if(scr) feat=`popup,left=${scr.availLeft},top=${scr.availTop},width=${scr.availWidth},height=${scr.availHeight},fullscreen`;
     let w=null; try{ w=window.open('','slidewright-audience',feat); }catch(_){}
-    if(!w) return null; w.document.open(); w.document.write(presentHTML({toolbar:false})); w.document.close(); aw=w; attach(state); return w; };
+    if(!w) return null; const t=(S.doc&&S.doc.title||'Slides').replace(/[<&>]/g,'');
+    w.document.open(); w.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${t}</title><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#deck{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</style></head><body><iframe id="deck" title="Slides" allow="fullscreen; autoplay" sandbox="${DECK_SANDBOX}"></iframe></body></html>`); w.document.close();
+    const fr=w.document.getElementById('deck'); if(B) B.close(); B=deckBridge(fr,w); aw=w;
+    B.on('key',k=>{ if(k==='f'){ const d=w.document; if(d.fullscreenElement) d.exitFullscreen().catch(()=>{}); else d.documentElement.requestFullscreen().catch(()=>{}); } });
+    B.on('embeds',items=>embedOverlays(w.document,w.document.body,fr,items)); w.addEventListener('resize',()=>B&&B.send('hello'));
+    fr.srcdoc=presentHTML({toolbar:false}); attach(state); return w; };
   const fsPresenter=scr=>{ try{ if(scr&&ov.requestFullscreen) return ov.requestFullscreen({screen:scr}).catch(()=>{}); }catch(_){} return Promise.resolve(); };
   const cur=el('div',{class:'pv-cur'}), next=el('div',{class:'pv-next'}), notes=el('div',{class:'pv-notes'}), clock=el('span',{class:'pv-clock'}), timer=el('span',{class:'pv-timer',text:'0:00'}), pos=el('span',{class:'pv-pos'});
   let t0=Date.now(), paused=0, pauseAt=null; const fmt=ms=>{const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;};
   const pauseB=el('button',{class:'btn',text:'Pause',onclick:()=>{if(pauseAt){paused+=Date.now()-pauseAt; pauseAt=null; pauseB.textContent='Pause';} else {pauseAt=Date.now(); pauseB.textContent='Resume';}}});
-  const R=()=>{try{return aw.Reveal&&aw.Reveal.isReady&&aw.Reveal.isReady()?aw.Reveal:null;}catch(_){return null;}};
-  const ink=()=>{try{return aw.SW_ink||null;}catch(_){return null;}};
+  const R=()=>B&&B.st.ready?B.R:null;
+  const ink=()=>B&&B.st.ready&&B.st.ink?B.I:null;
   const slideTimer=el('span',{class:'pv-clock',title:'Time on this slide'}); let slideIdx=-1, slideT0=Date.now();
   const inkLayer=el('div',{class:'pv-ink'}); const inkSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); inkSvg.setAttribute('viewBox',`0 0 ${S.W} ${S.H}`); inkSvg.setAttribute('preserveAspectRatio','none'); inkLayer.appendChild(inkSvg);
   const pvDot=document.createElementNS('http://www.w3.org/2000/svg','circle'); pvDot.setAttribute('r',String(Math.round(S.W/110))); pvDot.setAttribute('fill','#FF2D2D'); pvDot.setAttribute('style','filter:drop-shadow(0 0 6px rgba(255,45,45,.9));opacity:0;transition:opacity .25s'); let dotT=null;
   const showDot=(x,y)=>{pvDot.setAttribute('cx',x); pvDot.setAttribute('cy',y); pvDot.style.opacity=1; clearTimeout(dotT); dotT=setTimeout(()=>pvDot.style.opacity=0,1500);};
-  let live=null; const drawInk=()=>{const I=ink(); inkSvg.innerHTML=I?I.markup():''; if(live) inkSvg.appendChild(live.el); inkSvg.appendChild(pvDot);};
+  let live=null; const drawInk=()=>{ inkSvg.replaceChildren(...(B&&B.st.ready?inkPaths(B.st.dump,`${B.st.ix.h}.${B.st.ix.v||0}`,'http://www.w3.org/2000/svg'):[])); if(live) inkSvg.appendChild(live.el); inkSvg.appendChild(pvDot);};
   const toPt=e=>{const r=inkLayer.getBoundingClientRect(); return [(e.clientX-r.left)*S.W/r.width,(e.clientY-r.top)*S.H/r.height];};
   inkLayer.addEventListener('pointerdown',e=>{const I=ink(); if(!I) return; const t=I.getTool(); if(t!=='pen'&&t!=='hl') return; e.preventDefault(); inkLayer.setPointerCapture(e.pointerId); const [x,y]=toPt(e); I.begin(x,y);
     const pth=document.createElementNS('http://www.w3.org/2000/svg','path'); pth.setAttribute('fill','none'); pth.setAttribute('stroke',t==='hl'?'#FFD400':I.getColor()); pth.setAttribute('stroke-width',t==='hl'?22:4); pth.setAttribute('stroke-linecap','round'); if(t==='hl') pth.setAttribute('stroke-opacity','0.4'); live={el:pth,d:`M${x} ${y}`}; pth.setAttribute('d',live.d); inkSvg.appendChild(pth);});
@@ -90,7 +96,7 @@ async function presenterView(){
   const tb=(label,title,t,fn)=>{const b=el('button',{class:'btn',text:label,title,onclick:fn||(()=>setTool(t))}); if(t) toolBtns[t]=b; return b;};
   const tools=el('span',{class:'pv-tools'},tb('✎ Pen','Draw on the slide (D)','pen'),tb('▮ Marker','Highlight (M)','hl'),tb('● Laser','Laser pointer (R)','laser'),
     tb('↶','Undo last stroke',null,()=>{const I=ink(); I&&I.undo();}),tb('⌫','Clear drawings on this slide (E)',null,()=>{const I=ink(); I&&I.clear();}),tb('■ Blank','Black out the screen (B)',null,()=>{const r=R(); r&&r.togglePause();}));
-  const close=()=>{clearInterval(iv); if(document.fullscreenElement===ov) document.exitFullscreen().catch(()=>{}); ov.remove(); document.removeEventListener('keydown',kd,true); if(sd) sd.removeEventListener&&sd.removeEventListener('screenschange',onScreens);};
+  const close=()=>{clearInterval(iv); if(B) B.close(); if(document.fullscreenElement===ov) document.exitFullscreen().catch(()=>{}); ov.remove(); document.removeEventListener('keydown',kd,true); if(sd) sd.removeEventListener&&sd.removeEventListener('screenschange',onScreens);};
   const onScreens=()=>{ place=pickScreens(sd); };
   if(sd&&sd.addEventListener) sd.addEventListener('screenschange',onScreens);
   const snapshot=()=>{ const r=R(), I=ink(); let ix=null; try{ ix=r&&r.getIndices(); }catch(_){} return {ix,ink:I?I.dump():null}; };
@@ -121,10 +127,11 @@ async function presenterView(){
   const kd=e=>{const r=R(); if(e.key==='Escape'){e.preventDefault(); const I=ink(); if(I&&I.getTool()){I.setTool(I.getTool()); syncTools(); return;} close(); return;} if(!r) return;
     if(!e.metaKey&&!e.ctrlKey&&!e.altKey){const k=e.key.toLowerCase(); const map={d:'pen',m:'hl',r:'laser'}; if(map[k]){e.preventDefault(); e.stopPropagation(); setTool(map[k]); return;} if(k==='e'){e.preventDefault(); const I=ink(); I&&I.clear(); return;} if(k==='b'||k==='.'){e.preventDefault(); r.togglePause(); return;} if(k==='c'){e.preventDefault(); const I=ink(); if(I){const cs=['#E0407A','#2557D6','#16181D','#1C7A4C']; I.setColor(cs[(cs.indexOf(I.getColor())+1)%cs.length]);} return;}} if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)){e.preventDefault(); e.stopPropagation(); r.next();} if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault(); e.stopPropagation(); r.prev();}};
   document.addEventListener('keydown',kd,true);
-  function attach(state){ const mine=aw, start=Date.now(); const wait=()=>{ if(aw!==mine) return; const r=R(); if(r){ ['slidechanged','fragmentshown','fragmenthidden'].forEach(ev=>r.on(ev,render));
-      try{ if(state&&state.ix) r.slide(state.ix.h,state.ix.v,state.ix.f); else r.slide(S.cur); }catch(_){} render();
-      const sub=()=>{ if(aw!==mine) return; const I=ink(); if(I){ if(state&&state.ink) I.load(state.ink); I.onchange(()=>{drawInk(); syncTools();}); syncTools(); drawInk(); } else setTimeout(sub,200);}; sub(); return;}
-      if(Date.now()-start<15000) setTimeout(wait,150); else {cur.replaceChildren(el('div',{class:'pv-end',text:'The deck’s player didn’t start in the audience window.'}));}}; wait(); }
+  function attach(state){ const mine=B;
+    mine.on('ready',()=>{ if(B!==mine) return; const r=mine.R; ['slidechanged','fragmentshown','fragmenthidden'].forEach(ev=>r.on(ev,render));
+      if(state&&state.ix) r.slide(state.ix.h,state.ix.v,state.ix.f); else r.slide(S.cur); render();
+      const I=mine.I; if(state&&state.ink) I.load(state.ink); I.onchange(()=>{drawInk(); syncTools();}); syncTools(); drawInk(); });
+    setTimeout(()=>{ if(B===mine&&!mine.st.ready) cur.replaceChildren(el('div',{class:'pv-end',text:'The deck’s player didn’t start in the audience window.'})); },15000); }
   if(place) await fsPresenter(place.pres);
   if(!openAudience(place&&place.aud,null)){
     const v=await modal('Start presenting',place?`Slidewright will put the slides on ${screenName(place.aud)} and presenter view on ${screenName(place.pres)}.`:'Slidewright opens the slides in a second window for the projector.',[['Cancel',null],['Start','ok','primary']]);

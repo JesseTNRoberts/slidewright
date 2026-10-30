@@ -66,6 +66,17 @@ function detectSize(doc){
   S.W=W||1280; S.H=H||720;
   deck.style.setProperty('--de-w',S.W+'px'); deck.style.setProperty('--de-h',S.H+'px');
 }
+/* While a deck is open for editing, nothing in it may run: inline event handlers (onerror=, onload=...), srcdoc frames,
+   javascript: and HTML data: addresses, meta refresh and base are parked in data-sw-* attributes and put back on save. */
+const UNSAFE_URL=/^\s*(javascript|vbscript)\s*:|^\s*data\s*:\s*(text\/html|image\/svg\+xml|application\/xhtml)/i;
+function defang(root){ if(!root||!root.querySelectorAll) return root;
+  for(const e of root.querySelectorAll('*')){ for(const a of Array.from(e.attributes)){ const n=a.name.toLowerCase(); if(n.startsWith('data-')) continue;
+      const tag=e.tagName.toLowerCase(); const park=n.startsWith('on')||(n==='srcdoc')||(tag==='meta'&&n==='http-equiv')||(tag==='base'&&n==='href')||(/^(src|href|xlink:href|data|action|formaction|to|values|from|by|poster)$/.test(n)&&UNSAFE_URL.test(a.value)&&!(tag==='img'&&/^\s*data\s*:\s*image\/svg/i.test(a.value)));
+      if(park){ e.setAttribute('data-sw-x-'+n.replace(/:/g,'--'),a.value); e.removeAttribute(a.name); } } }
+  return root; }
+function undefang(root){ const all=[root,...root.querySelectorAll('*')];
+  for(const e of all){ if(!e.attributes) continue; for(const a of Array.from(e.attributes)){ if(!a.name.startsWith('data-sw-x-')) continue; const n=a.name.slice(10).replace(/--/g,':'); e.removeAttribute(a.name); try{ if(n.includes(':')) e.setAttributeNS('http://www.w3.org/1999/xlink',n,a.value); else e.setAttribute(n,a.value); }catch(_){} } }
+  return root; }
 function loadHTML(text,name,handle){
   const doc=new DOMParser().parseFromString(text,'text/html');
   let secs=$$('.reveal .slides > section',doc);
@@ -75,7 +86,7 @@ function loadHTML(text,name,handle){
   S.host=secs[0].parentNode;
   S.doc=doc; S.name=name||'deck.html'; S.handle=handle||null;
   detectSize(doc);
-  S.slides=secs.map(s=>document.adoptNode(s));
+  S.slides=secs.map(s=>document.adoptNode(defang(s)));  /* only slides enter the page; the rest of the file is kept as text-like DOM */
   S.slides.forEach(observe);
   S.layerIdx=new WeakMap(); S.cur=0; S.sel=[]; S.scope=null; thumbCache=new WeakMap();
   injectDeckCSS(doc);
