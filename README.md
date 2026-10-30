@@ -55,6 +55,8 @@ Saving keeps the deck's own scripts and styles untouched, so the file still pres
 
 ## Development
 
+The app is `index.html` (markup), `app.css` and the scripts in `js/` (see [`js/README.md`](js/README.md)); there is no build step.
+
 - `index.html` is the source. There's no build step for the site.
 - `vendor/` holds the bundled libraries (KaTeX, jsPDF, reveal.js); see [vendor/README.md](vendor/README.md).
 - [docs/DECK-FORMAT.md](docs/DECK-FORMAT.md) lists the deck structure Slidewright relies on.
