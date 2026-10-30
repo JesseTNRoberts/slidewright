@@ -27,11 +27,14 @@
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
-#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:208px minmax(0,1fr) 296px;
-  grid-template-areas:"top top top" "side stage insp" "status status status"}
+#app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-columns:200px minmax(0,1fr) 272px;
+  grid-template-areas:"top top top" "rib rib rib" "side stage insp" "status status status"}
+#app.no-insp{grid-template-columns:200px minmax(0,1fr) 0}
+#app.no-insp #insp{display:none}
+#app.ribbon-min #ribbon{display:none}
 
 /* ---------- top bar ---------- */
-#top{grid-area:top;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:20}
+#top{grid-area:top;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:4px 10px 0;background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:20}
 .brand{display:flex;align-items:baseline;gap:10px;margin-right:8px;min-width:0}
 .brand b{font-weight:600;font-size:14px;letter-spacing:-.01em;white-space:nowrap}
 .brand .wm{font-family:Charter,'Bitstream Charter','Iowan Old Style',Georgia,serif;font-weight:700;font-size:17px;letter-spacing:-.005em}
@@ -304,7 +307,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
 @media (max-width: 860px){
   body{overflow:auto}
-  #app{height:auto;min-height:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 58vh auto auto auto;grid-template-areas:"top" "stage" "status" "side" "insp"}
+  #app{height:auto;min-height:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 58vh auto auto auto;grid-template-areas:"top" "rib" "stage" "status" "side" "insp"}
+  .tabs{order:10;width:100%;margin-left:0;overflow-x:auto}
   #stageScroll{padding:16px}
   #side{border-right:0;border-top:1px solid var(--line)}
   #slideList{flex-direction:row;overflow-x:auto;padding:8px 12px}
@@ -315,8 +319,43 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   .tb .lb{display:none}
   #fileName{max-width:140px}
 }
-/* keep the toolbar on one row: drop labels from the less-used buttons first */
-@media (max-width:1680px){ #bMath .lb,#bCode .lb,#bMedia .lb{display:none} }
-@media (max-width:1440px){ #bTable .lb,#bShape .lb,#bAlt .lb,#bCheck .lb{display:none} }
-@media (max-width:1180px){ #bText .lb,#bImage .lb,#bOpen .lb{display:none} }
 @media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+
+/* ---------- ribbon ---------- */
+#top .tb{height:30px}
+#top .tb.ic,.tb.ic{padding:0 7px}
+.tabs{display:flex;align-items:flex-end;gap:2px;align-self:stretch;margin-left:6px}
+.tab{height:32px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:none;cursor:pointer;color:var(--ink-2);font-weight:500;border-radius:5px 5px 0 0;white-space:nowrap}
+.tab:hover{color:var(--ink);background:var(--panel-2)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tab.file{color:var(--ink);font-weight:600}
+.tab.file[aria-expanded="true"]{background:var(--panel-2)}
+.tab.ctx{color:var(--sel)}
+.tab.ctx[aria-selected="true"]{color:var(--sel);border-bottom-color:var(--sel)}
+#ribbon{grid-area:rib;background:var(--panel);border-bottom:1px solid var(--line);border-top:1px solid var(--line-2);min-width:0;position:relative;z-index:19}
+.rp{display:flex;align-items:center;gap:0;height:44px;padding:0 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.rg{display:flex;align-items:center;gap:2px;padding:0 8px;height:30px;border-right:1px solid var(--line-2);flex:none}
+.rg:last-child{border-right:0}
+.rp .tb{height:30px;padding:0 8px;font-size:12.5px}
+.rp .tb .lb{display:inline}
+.rp .tb:disabled{opacity:.35}
+.rp .glyph{display:inline-grid;place-items:center;width:17px;font-size:15px;line-height:1}
+.rsel,.rnum{height:28px;border:1px solid var(--line);border-radius:5px;background:var(--panel-2);color:var(--ink);font-size:12.5px;padding:0 6px;box-sizing:border-box}
+.rnum{width:54px}
+.rsel:disabled,.rnum:disabled,.rcol:has(input:disabled){opacity:.4}
+.rsel:focus,.rnum:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.rlab{display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12px;margin:0 4px}
+.rlab .rsel{max-width:150px}
+.rico{display:inline-grid;place-items:center;color:var(--ink-3)}
+.rico svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.rcol{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:6px;cursor:pointer}
+.rcol:hover{background:var(--panel-2)}
+.rcol input{width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:4px;background:none;cursor:pointer}
+.rcol input::-webkit-color-swatch-wrapper{padding:0}.rcol input::-webkit-color-swatch{border:0;border-radius:3px}
+#bPanel[aria-pressed="true"]{background:none;border-color:transparent;color:var(--ink)}
+#bPanel[aria-pressed="false"]{color:var(--ink-3)}
+@media (max-width:1100px){ .rp .tb .lb{display:none} .rp .tb{padding:0 7px} #top .tb .lb{display:none} }
+/* the ribbon's Home tab carries these, so the panel drops them (the controls stay in the page: the ribbon works through them) */
+#insp .in-ribbon{display:none}
+@media (max-width:860px){ #insp .in-ribbon{display:revert} }

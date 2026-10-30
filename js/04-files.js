@@ -45,7 +45,7 @@ async function checkRecovery(){const d=await idb('get','draft'); if(!d||!d.html)
   const when=mins<60?mins+' min ago':mins<1440?Math.round(mins/60)+' h ago':Math.round(mins/1440)+' days ago';
   const bn=document.createElement('div'); bn.id='banner'; bn.innerHTML='<span></span><button class="btn">Restore</button><button class="btn">Discard</button>'; bn.firstChild.textContent=`Unsaved edits to ${d.name} from ${when} are still here.`;
   const [rb,db]=bn.querySelectorAll('button'); rb.onclick=()=>{bn.remove(); if(loadHTML(d.html,d.name,null)){S.dirty=true; updateFileName(); toast('Restored your unsaved edits. Save to keep them.');} relayout();}; db.onclick=()=>{idb('delete','draft'); bn.remove(); relayout();};
-  const app=$('#app'); app.style.gridTemplateRows='auto auto minmax(0,1fr) auto'; app.insertBefore(bn,$('#side')); bn.style.gridArea='auto'; bn.style.gridRow='2';}
+  const app=$('#app'); app.style.gridTemplateRows='auto auto auto minmax(0,1fr) auto'; app.insertBefore(bn,$('#side')); bn.style.gridArea='auto'; bn.style.gridRow='3';}
 function relayout(){$('#app').style.gridTemplateRows=''; applyZoom();}
 /* drag files in */
 let dragDepth=0; const dh=()=>$('#dropHint');
