@@ -464,6 +464,29 @@ test('pictures: crop keeps the rest in place, can be undone, and Compress shrink
   assert(await page.evaluate(() => document.getElementById('tbig').naturalWidth <= 400), 'compressed picture is still bigger than twice its shown size');
 });
 
+test('click effects and slide transitions: chosen in the panels, previewed, saved', async page => {
+  await page.evaluate(() => { const D = __deckEditor; D.go(2); const root = D.S.slides[2].querySelector(':scope > div');
+    const a = document.createElement('div'); a.id = 'tfxa'; a.textContent = 'Flies in'; a.style.cssText = 'position:absolute;left:100px;top:560px;width:300px;height:40px;font-size:28px';
+    const b = document.createElement('div'); b.id = 'tfxb'; b.textContent = 'Leaves'; b.style.cssText = 'position:absolute;left:500px;top:560px;width:300px;height:40px;font-size:28px';
+    root.append(a, b); D.commit('t'); D.setSel([a]); });
+  await page.check('#bFrag'); await page.selectOption('#bFx', 'fade-up'); await page.selectOption('#bSpeed', '1.2s');
+  await page.evaluate(() => __deckEditor.setSel([document.getElementById('tfxb')])); await page.check('#bFrag'); await page.selectOption('#bFx', 'fade-out');
+  await page.evaluate(() => __deckEditor.setSel([])); await page.selectOption('#sTrans', 'zoom'); await page.selectOption('#sTransSpeed', 'slow');
+  const st = await page.evaluate(() => ({ a: document.getElementById('tfxa').className, sp: document.getElementById('tfxa').style.transitionDuration, b: document.getElementById('tfxb').className, tr: __deckEditor.S.slides[2].getAttribute('data-transition') }));
+  assert(/fragment/.test(st.a) && /fade-up/.test(st.a) && st.sp === '1.2s' && /fade-out/.test(st.b) && st.tr === 'zoom', 'settings not applied: ' + JSON.stringify(st));
+  // preview: the exit item is visible until its click, the fly-in item animates in on its click
+  await page.keyboard.press('p'); await wait(1400); /* the fly-in item has a slow (1.2 s) transition */
+  const op = id => page.evaluate(id => getComputedStyle(document.getElementById(id)).opacity, id);
+  assert(await op('tfxb') === '1', 'exit item hidden before its click');
+  assert(await op('tfxa') === '0', 'fly-in item visible before its click');
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowRight'); await wait(500); if (await op('tfxb') === '0') break; }
+  assert(await op('tfxb') === '0', 'exit item still visible after its click');
+  assert(await op('tfxa') !== '0', 'fly-in item not shown after its click');
+  await page.keyboard.press('Escape'); await wait(150);
+  const out = await page.evaluate(() => __deckEditor.serialize());
+  assert(/data-transition="zoom"/.test(out) && /data-transition-speed="slow"/.test(out) && /class="fragment fade-up"/.test(out), 'effects not saved');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
