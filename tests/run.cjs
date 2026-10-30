@@ -116,6 +116,27 @@ test('ribbon: tabs, text formatting through the Home tab, contextual Table tab, 
   await page.click('#bPanel'); assert(await page.isHidden('#insp'), 'panel not hidden'); await page.click('#bPanel'); assert(await page.isVisible('#insp'), 'panel not back');
 });
 
+test('right-click anything to leave a note to Claude: an item, empty slide space, a slide in the list', async page => {
+  await page.evaluate(() => __deckEditor.go(0));
+  const pt = await page.evaluate(() => { const s = document.querySelector('#deckSlides'); const e = [...s.querySelectorAll('*')].find(x => x.children.length === 0 && x.textContent.trim().length > 8 && x.getBoundingClientRect().width > 40); const r = e.getBoundingClientRect(); return [r.x + 10, r.y + r.height / 2]; });
+  await page.mouse.click(pt[0], pt[1], { button: 'right' });
+  const first = await page.textContent('.menu button'); assert(/^Note to Claude about this/.test(first), 'first menu item: ' + first);
+  await page.click('.menu button'); await page.fill('.modal textarea', 'Shorter, please'); await page.click('.modal .btn.primary'); await wait(150);
+  const item = await page.evaluate(() => { const s = __deckEditor.S.slides[0]; const n = s.querySelector('aside.sw-claude-notes p'); return n && n.getAttribute('data-on') && !!s.querySelector(`[data-claude-note="${n.getAttribute('data-on')}"]`); });
+  assert(item, 'note not tied to the right-clicked item');
+  const box = await page.evaluate(() => { const r = document.querySelector('#stageBox').getBoundingClientRect(); return [r.x + r.width - 6, r.y + r.height - 6]; });
+  await page.keyboard.press('Escape'); await page.mouse.click(box[0], box[1], { button: 'right' });
+  assert(/about this slide/.test(await page.textContent('.menu button')), 'empty-space menu does not offer a slide note');
+  await page.keyboard.press('Escape');
+  await page.click('#slideList > li:nth-child(2)', { button: 'right' });
+  assert(/about this slide/.test(await page.textContent('.menu button')), 'slide list menu does not offer a note');
+  await page.click('.menu button'); await page.fill('.modal textarea', 'Split this slide in two'); await page.click('.modal .btn.primary'); await wait(150);
+  assert(await page.evaluate(() => __deckEditor.S.cur === 1 && __deckEditor.S.slides[1].querySelectorAll('aside.sw-claude-notes p:not([data-on])').length === 1), 'slide-list note not on slide 2');
+  assert(await page.locator('.sw-note-pin').count() === 1, 'pin not drawn for the slide note');
+  await page.click('.sw-note-pin', { button: 'right' }); await page.waitForSelector('.modal textarea');
+  assert(await page.inputValue('.modal textarea') === 'Split this slide in two', 'right-clicking a pin does not open it'); await page.click('.modal .btn:not(.primary)');
+});
+
 test('accessibility check finds the planted problems and fixes lift the score', async page => {
   await page.click('#tab-review'); await page.click('#bCheck'); await page.waitForSelector('.modal-bg.audit', { timeout: 60000 });
   const titles = await page.evaluate(() => [...document.querySelectorAll('.a11y-rule b')].map(b => b.textContent));

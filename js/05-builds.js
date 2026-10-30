@@ -398,13 +398,15 @@ stageScroll.addEventListener('contextmenu',e=>{
   if(S.editing&&S.editing.contains(e.target)){ const math=e.target.closest&&e.target.closest('.sw-math');
     const r=caretAt(x,y); if(r&&S.editing.contains(r.startContainer)){ if(preCtxSel&&preCtxSel.isPointInRange(r.startContainer,r.startOffset)) restoreCaret(preCtxSel); else restoreCaret(r); }
     const selTxt=savedRange&&!savedRange.collapsed?savedRange.toString():'';
-    ctxMenu(x,y,[ math?['Edit equation',()=>editMath(math)]:null, [selTxt?'Turn selection into an equation':'Insert equation here',()=>editMath(null,{range:savedRange&&savedRange.cloneRange()})],'-',
+    ctxMenu(x,y,[ ['Note to Claude about this text…',()=>{const el2=S.editing; endEdit(); setSel([el2]); addClaudeNote(el2);}],'-', math?['Edit equation',()=>editMath(math)]:null, [selTxt?'Turn selection into an equation':'Insert equation here',()=>editMath(null,{range:savedRange&&savedRange.cloneRange()})],'-',
       ['Bold',()=>{restoreRange(); document.execCommand('bold');},mod+' B'],['Italic',()=>{restoreRange(); document.execCommand('italic');},mod+' I'],'-',['Finish typing',()=>{const el2=S.editing; endEdit(); setSel([el2]);},'Esc']]); return; }
   if(S.editing) endEdit();
   const p=inSlide?pickAt(x,y):null; const it=p&&p.item; const math=p&&p.hit.closest&&(p.hit.closest('.sw-math')||(it.children.length===1&&it.firstElementChild.classList.contains('sw-math')?it.firstElementChild:null));
   if(it&&!S.sel.includes(it)) setSel([it]);
   const textish=it&&!hasBlockKids(it)&&!/^(svg|img)$/i.test(it.tagName)&&!math;
   ctxMenu(x,y,[
+    inSlide?[it?'Note to Claude about this…':'Note to Claude about this slide…',()=>addClaudeNote(it||null)]:null,
+    inSlide?'-':null,
     math?['Edit equation',()=>editMath(math)]:null,
     textish?['Insert equation in this text here',()=>{startEdit(it,x,y); setTimeout(()=>editMath(null,{range:savedRange&&savedRange.cloneRange()}),0);}]:null,
     inSlide?['Insert equation here',()=>editMath(null,{x,y,slidePt:pt})]:null,
