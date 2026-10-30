@@ -68,6 +68,10 @@ The code is under the [MIT License](LICENSE): use it, change it, and share it, k
 
 The Slidewright name and the wheel logo belong to Jesse Roberts and aren't covered by the MIT License. You're welcome to use them to refer to Slidewright, for example to link to it, write about it, or say your deck was made with it. If you publish your own modified version, please give it a different name and logo so people can tell it apart from the official Slidewright.
 
+## Templates
+
+`templates/lecture.html` is the lecture template behind **Open → New from a template**. It is generated from a real lecture deck so it carries the same fonts, colours, PDF button and Present button: `node tools/make_template.cjs <deck.html>`.
+
 ## Privacy
 
 Slidewright runs in your browser and keeps no copy of your decks. See the [privacy policy](https://www.jessetnroberts.com/slidewright/privacy.html) ([source](privacy.html)).

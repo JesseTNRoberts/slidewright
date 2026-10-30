@@ -1443,7 +1443,7 @@ $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertIma
 $('#bAlt').onclick=()=>toggleAlt();
 $('#bUndo').onclick=undo; $('#bRedo').onclick=redo;
 function openMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
-  menu(anchor,[['From this computer…',openFile,'Ctrl O'],...(window.showDirectoryPicker&&canFS()?[['From a folder…',openFolder],['Recent…',()=>openRecentMenu(anchor)]]:[]),['From Google Drive…',openFromDrive],['From GitHub…',openFromGitHub],['New blank deck',newDeck]]); }
+  menu(anchor,[['From this computer…',openFile,'Ctrl O'],...(window.showDirectoryPicker&&canFS()?[['From a folder…',openFolder],['Recent…',()=>openRecentMenu(anchor)]]:[]),['From Google Drive…',openFromDrive],['From GitHub…',openFromGitHub],['New from a template…',newFromTemplate],['New blank deck',newDeck]]); }
 /* Save goes straight back when the deck is connected to a place it can write; otherwise it asks where. */
 const saveConnected=()=>!!(S.gh||S.gdrive||S.web||(S.handle&&S.handle.createWritable));
 function saveMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
@@ -2975,6 +2975,17 @@ const FX_PLAY=`@keyframes swfx-up{from{opacity:0;transform:translate(0,40px)}}@k
 `;
 { const st=document.createElement('style'); st.textContent=fxStateCSS('#deck.de-deck.de-play .slides section')+'\n'+FX_PLAY; document.head.appendChild(st); }
 
+
+/* ======================= templates ======================= */
+async function newFromTemplate(){
+  let list; try{ const r=await fetch('templates/index.json',{cache:'no-cache'}); if(!r.ok) throw 0; list=await r.json(); }catch(_){ toast('Templates are available on the Slidewright site (www.jessetnroberts.com/slidewright).','warn'); return; }
+  if(!(await confirmDiscard())) return;
+  let pick=list[0]; if(list.length>1){ const sel=el('select',{},...list.map((t,i)=>new Option(t.name,String(i)))); const d=el('p',{class:'hint',text:list[0].description}); sel.onchange=()=>{ d.textContent=list[+sel.value].description; };
+    const v=await modal('New from a template',el('div',{class:'stack'},sel,d),[['Cancel',null],['Use it','ok','primary']]); if(v!=='ok') return; pick=list[+sel.value]; }
+  const prog=progressCard('Opening the template'); prog.set(0.4,pick.name); let text; try{ const r=await fetch('templates/'+pick.file,{cache:'no-cache'}); if(!r.ok) throw new Error(r.status); text=await r.text(); }catch(e){ prog.close(); toast('Couldn’t load that template. Check your connection.','warn'); return; } prog.close();
+  if(loadHTML(text,'new-lecture.html',null)){ S.dirty=true; updateFileName(); toast('New deck from the '+pick.name+' template. Replace the placeholders, delete the slides you don’t need, and Save to choose where it goes.'); }
+}
+
 /* ======================= code slides ======================= */
 const CODE_THEMES={
   dark:{bg:'#16181D',fg:'#E8EAF0',kw:'#9DB6F2',str:'#F7CDB0',num:'#F2B25A',com:'#959BA8',fn:'#7FD9A6',dec:'#C9A2F2',ln:'#7E8595',hl:'rgba(137,163,255,0.20)',bar:'#89A3FF'},
@@ -3106,7 +3117,7 @@ if(location.hash==='#present'&&window.opener){
   ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
 }
 
-window.__deckEditor={cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={newFromTemplate,collectLayouts,layoutSection,stdLayouts,setSlides,buildCode,makeTable,slideTitle,cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 

@@ -490,6 +490,14 @@ test('click effects and slide transitions: chosen in the panels, previewed, save
   assert(/data-transition="zoom"/.test(out) && /data-transition-speed="slow"/.test(out) && /class="fragment fade-up"/.test(out), 'effects not saved');
 });
 
+test('New from a template opens the lecture template as a new, unsaved deck', async page => {
+  await page.click('#bOpen'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^New from a template/.test(b.textContent)).click());
+  await page.waitForFunction(() => __deckEditor.S.name === 'new-lecture.html', null, { timeout: 15000 });
+  const st = await page.evaluate(() => ({ n: __deckEditor.S.slides.length, dirty: __deckEditor.S.dirty, titles: __deckEditor.S.slides.map(s => s.dataset.title), gh: __deckEditor.S.gh, pdf: !!__deckEditor.S.slides[0].querySelector('.pdf-get') }));
+  assert(st.n >= 10 && st.dirty && !st.gh && st.pdf, 'template not opened as a new deck: ' + JSON.stringify(st));
+  for (const t of ['Title slide', 'Table', 'Code', 'Equation']) assert(st.titles.includes(t), 'template lacks a ' + t + ' slide');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
