@@ -86,8 +86,38 @@ test('click preview steps through fragments and cleans up', async page => {
   assert(left === 0, 'preview classes left behind');
 });
 
+test('ribbon: tabs, text formatting through the Home tab, contextual Table tab, panel toggle', async page => {
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('#top .tab[data-tab]')].filter(t => !t.hidden).map(t => t.textContent));
+  assert(tabs.join() === 'Home,Insert,Animate,Present,Review', 'tabs: ' + tabs);
+  assert(await page.isDisabled('#rp-home [data-proxy="#tB"]'), 'Bold should be off with nothing selected');
+  await page.click('#tab-insert'); await page.click('#bText'); await wait(150); await page.keyboard.press('Escape'); await wait(100);
+  assert(await page.evaluate(() => __deckEditor.S.sel.length === 1), 'new text box not selected'); await page.click('#tab-home');
+  assert(!(await page.isDisabled('#rp-home [data-proxy="#tB"]')), 'Bold not enabled for a text item');
+  const before = await page.evaluate(() => parseInt(getComputedStyle(__deckEditor.S.sel[0]).fontWeight));
+  await page.click('#rp-home [data-proxy="#tB"]'); await wait(100);
+  const after = await page.evaluate(() => parseInt(getComputedStyle(__deckEditor.S.sel[0]).fontWeight));
+  assert((before >= 600) !== (after >= 600), `Bold did nothing (${before} -> ${after})`);
+  await page.fill('#rp-home [data-mirror="#tSize"]', '50'); await page.press('#rp-home [data-mirror="#tSize"]', 'Enter'); await wait(100);
+  assert(await page.evaluate(() => getComputedStyle(__deckEditor.S.sel[0]).fontSize) === '50px', 'font size from the ribbon not applied');
+  assert(await page.inputValue('#rp-home [data-mirror="#tFont"]') === await page.inputValue('#tFont'), 'font box out of step');
+  await page.click('#tab-animate'); assert(await page.isVisible('#bPreview'), 'Preview clicks not on the Animate tab');
+  assert(!(await page.isDisabled('#rp-animate [data-proxy="#bFrag"]')), 'Appears on click off with an item selected');
+  await page.click('#tab-home'); await page.click('#rp-home [data-proxy="#tB"]'); for (let i = 0; i < 4; i++) await page.keyboard.press('Control+z'); await page.keyboard.press('Escape');
+  await page.click('#tab-insert'); await page.click('#bTable'); await page.waitForSelector('.tblpick');
+  await page.evaluate(() => [...document.querySelectorAll('.tblpick button')].find(b => b.getAttribute('aria-label') === '2 rows by 2 columns').click());
+  await wait(200); await page.keyboard.press('Escape'); await wait(150);
+  assert(await page.isVisible('#tab-table'), 'Table tab not shown for a table');
+  await page.click('#tab-table');
+  const rows = () => page.evaluate(() => __deckEditor.S.sel[0].rows.length);
+  const r0 = await rows(); await page.click('#rp-table [data-proxy=\'[data-tbl="rowBelow"]\']'); assert(await rows() === r0 + 1, 'Row below from the ribbon did nothing');
+  await page.keyboard.press('Control+z'); await page.keyboard.press('Control+z'); await wait(150);
+  await page.keyboard.press('Escape'); await wait(100);
+  assert(await page.isHidden('#tab-table'), 'Table tab still shown'); assert(await page.getAttribute('#tab-home', 'aria-selected') === 'true', 'did not fall back to Home');
+  await page.click('#bPanel'); assert(await page.isHidden('#insp'), 'panel not hidden'); await page.click('#bPanel'); assert(await page.isVisible('#insp'), 'panel not back');
+});
+
 test('accessibility check finds the planted problems and fixes lift the score', async page => {
-  await page.click('#bCheck'); await page.waitForSelector('.modal-bg.audit', { timeout: 60000 });
+  await page.click('#tab-review'); await page.click('#bCheck'); await page.waitForSelector('.modal-bg.audit', { timeout: 60000 });
   const titles = await page.evaluate(() => [...document.querySelectorAll('.a11y-rule b')].map(b => b.textContent));
   for (const want of ['Pictures without alt text', 'Alt text longer than 120 characters', 'The deck has no headings', 'Text with low colour contrast', 'Tables without a header row', 'Text smaller than 12px'])
     assert(titles.includes(want), 'missing rule: ' + want + ' (got ' + titles.join(', ') + ')');
@@ -381,7 +411,7 @@ test('an expired GitHub sign-in is forgotten and Save offers to sign in again', 
 });
 
 test('tables: insert from the picker, type with Tab, add and remove rows and columns, headers for screen readers', async page => {
-  await page.click('#bTable'); await page.waitForSelector('.tblpick');
+  await page.click('#tab-insert'); await page.click('#bTable'); await page.waitForSelector('.tblpick');
   await page.evaluate(() => [...document.querySelectorAll('.tblpick button')].find(b => b.getAttribute('aria-label') === '3 rows by 4 columns').click());
   await page.waitForFunction(() => __deckEditor.S.editing && __deckEditor.S.editing.tagName === 'TABLE');
   const shape = () => page.evaluate(() => { const t = __deckEditor.S.sel[0]; return [...t.rows].map(r => r.cells.length).join(','); });
@@ -418,7 +448,7 @@ test('video and audio: add a file with captions, a YouTube link, and both are sa
   if (made) fs.writeFileSync(vid, Buffer.from(made, 'base64')); else fs.writeFileSync(vid, Buffer.alloc(2000));
   fs.writeFileSync(vtt, '1\n00:00:00,000 --> 00:00:01,000\nHello there\n');
   await page.evaluate(() => __deckEditor.go(1));
-  let chooser = page.waitForEvent('filechooser'); await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^Video from/.test(b.textContent)).click());
+  await page.click('#tab-insert'); let chooser = page.waitForEvent('filechooser'); await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^Video from/.test(b.textContent)).click());
   await (await chooser).setFiles(vid);
   await page.waitForFunction(() => __deckEditor.S.sel[0] && __deckEditor.S.sel[0].tagName === 'VIDEO', null, { timeout: 10000 });
   assert(await page.isVisible('#pMedia'), 'Media panel not shown for a video');
@@ -427,7 +457,7 @@ test('video and audio: add a file with captions, a YouTube link, and both are sa
   assert(cap && cap.startsWith('WEBVTT') && cap.includes('00:00:00.000 --> 00:00:01.000'), 'SRT captions not converted: ' + cap);
   await page.check('#mAuto'); assert(await page.evaluate(() => __deckEditor.S.sel[0].hasAttribute('data-autoplay')), 'autoplay flag not set');
   // YouTube link
-  await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^YouTube/.test(b.textContent)).click());
+  await page.click('#tab-insert'); await page.click('#bMedia'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /^YouTube/.test(b.textContent)).click());
   await page.fill('.modal input[type=url]', 'https://youtu.be/dQw4w9WgXcQ?t=5'); await page.fill('.modal input[type=text]', 'Demo video');
   await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find(b => b.textContent === 'Add').click()); await wait(200);
   const emb = await page.evaluate(() => { const e = __deckEditor.S.sel[0]; const f = e.querySelector('iframe'); return { cls: e.className, ds: f.getAttribute('data-src'), src: f.getAttribute('src'), title: f.title }; });
