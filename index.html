@@ -593,7 +593,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </div>
 
 <div id="toasts" role="status" aria-live="polite"></div>
-<input type="file" id="fileDeck" accept=".html,.htm,text/html" hidden>
+<input type="file" id="fileDeck" accept=".html,.htm,text/html,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 <input type="file" id="fileImg" accept="image/*" multiple hidden>
 
 <script>
@@ -731,7 +731,10 @@ function pickAt(x,y){
   }
   return fallback;
 }
-const hasBlockKids=el=>el.tagName.toLowerCase()!=='svg'&&!/^(TABLE|VIDEO|AUDIO)$/.test(el.tagName)&&!(el.classList&&el.classList.contains('sw-embed'))&&Array.from(el.children).some(c=>!INLINE.has(c.tagName.toLowerCase())&&!isExtra(c));
+/* Paragraphs, lists and headings inside a box are its text, not separate items: the box is typed into as one piece. */
+const TEXTFLOW=new Set(['p','ul','ol','li','h1','h2','h3','h4','h5','h6','blockquote']);
+const textFlowOnly=el=>Array.from(el.children).every(c=>{const t=c.tagName.toLowerCase(); if(INLINE.has(t)) return true; if(!TEXTFLOW.has(t)) return false; const cs=c.style; if(cs&&(cs.position==='absolute'||cs.position==='fixed')) return false; return textFlowOnly(c);});
+const hasBlockKids=el=>el.tagName.toLowerCase()!=='svg'&&!/^(TABLE|VIDEO|AUDIO)$/.test(el.tagName)&&!(el.classList&&el.classList.contains('sw-embed'))&&Array.from(el.children).some(c=>!INLINE.has(c.tagName.toLowerCase())&&!isExtra(c))&&!(Array.from(el.children).some(c=>TEXTFLOW.has(c.tagName.toLowerCase()))&&textFlowOnly(el));
 
 /* ======================= undo (mutation journal) ======================= */
 let pending=[]; const undoStack=[], redoStack=[]; const IGN=new Set(['contenteditable','spellcheck']);
@@ -1443,7 +1446,7 @@ $('#bImage').onclick=()=>pickImage(async fs=>{for(const f of fs) await insertIma
 $('#bAlt').onclick=()=>toggleAlt();
 $('#bUndo').onclick=undo; $('#bRedo').onclick=redo;
 function openMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
-  menu(anchor,[['From this computer…',openFile,'Ctrl O'],...(window.showDirectoryPicker&&canFS()?[['From a folder…',openFolder],['Recent…',()=>openRecentMenu(anchor)]]:[]),['From Google Drive…',openFromDrive],['From GitHub…',openFromGitHub],['New from a template…',newFromTemplate],['New blank deck',newDeck]]); }
+  menu(anchor,[['From this computer…',openFile,'Ctrl O'],['PowerPoint file (.pptx)…',openFile],...(window.showDirectoryPicker&&canFS()?[['From a folder…',openFolder],['Recent…',()=>openRecentMenu(anchor)]]:[]),['From Google Drive…',openFromDrive],['From GitHub…',openFromGitHub],['New from a template…',newFromTemplate],['New blank deck',newDeck]]); }
 /* Save goes straight back when the deck is connected to a place it can write; otherwise it asks where. */
 const saveConnected=()=>!!(S.gh||S.gdrive||S.web||(S.handle&&S.handle.createWritable));
 function saveMenu(anchor){ if(gdriveUsable()) gLoad().catch(()=>{});
@@ -1504,9 +1507,9 @@ document.addEventListener('keydown',e=>{
 const canFS=()=>{try{return 'showOpenFilePicker' in window&&window.top===window;}catch(_){return false;}};
 async function confirmDiscard(){if(!S.dirty) return true; const v=await modal('Open another deck?','Your changes to '+S.name+' haven’t been saved. They stay in this browser’s recovery copy, but the open deck will be replaced.',[['Cancel',null],['Save first','save'],['Open anyway','ok','primary']]); if(v==='save'){await save(false); return true;} return v==='ok';}
 async function openFile(){if(!(await confirmDiscard())) return;
-  if(canFS()){try{const [h]=await window.showOpenFilePicker({types:[{description:'HTML slide deck',accept:{'text/html':['.html','.htm']}}]}); const f=await h.getFile(); openText(await f.text(),f.name,h); addRecent(h,f.name,false); return;}catch(e){if(e&&e.name==='AbortError') return;}}
+  if(canFS()){try{const [h]=await window.showOpenFilePicker({types:[{description:'Slide deck (HTML or PowerPoint)',accept:{'text/html':['.html','.htm'],'application/vnd.openxmlformats-officedocument.presentationml.presentation':['.pptx']}}]}); const f=await h.getFile(); if(isPptx(f)){ importPptx(f); return; } openText(await f.text(),f.name,h); addRecent(h,f.name,false); return;}catch(e){if(e&&e.name==='AbortError') return;}}
   $('#fileDeck').value=''; $('#fileDeck').click();}
-$('#fileDeck').onchange=async e=>{const f=e.target.files&&e.target.files[0]; if(f) openText(await f.text(),f.name,null);};
+$('#fileDeck').onchange=async e=>{const f=e.target.files&&e.target.files[0]; if(!f) return; if(isPptx(f)) importPptx(f); else openText(await f.text(),f.name,null);};
 function openText(text,name,handle){toast('Opening '+name+'…'); setTimeout(()=>{if(loadHTML(text,name,handle)) toast(`Opened ${name}: ${S.slides.length} slide${S.slides.length>1?'s':''}.`);},30);}
 function savedClone(s,doc){ doc=doc||document; const c=doc.importNode(s,true);
   c.querySelectorAll('.sw-math[data-sw-delim]').forEach(m=>{const d=m.getAttribute('data-sw-delim')==='display'; m.replaceWith(doc.createTextNode((d?'\\[':'\\(')+m.getAttribute('data-latex')+(d?'\\]':'\\)')));});
@@ -1551,6 +1554,7 @@ window.addEventListener('dragenter',e=>{if(dragIdx!=null||!e.dataTransfer||!Arra
 window.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0; dh()&&dh().remove();}});
 window.addEventListener('dragover',e=>{if(dragIdx==null&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files')) e.preventDefault();});
 window.addEventListener('drop',async e=>{if(dragIdx!=null) return; dragDepth=0; dh()&&dh().remove(); const fs=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]); if(!fs.length) return; e.preventDefault();
+  const pp=fs.find(isPptx); if(pp){ if(await confirmDiscard()) importPptx(pp); return; }
   const deckF=fs.find(f=>/\.html?$/i.test(f.name)||f.type==='text/html'); if(deckF){if(await confirmDiscard()) openText(await deckF.text(),deckF.name,null); return;}
   const b=stageBox.getBoundingClientRect(); let at={x:(e.clientX-b.left)/S.scale,y:(e.clientY-b.top)/S.scale}; if(at.x<0||at.y<0||at.x>S.W||at.y>S.H) at=null;
   for(const f of fs.filter(f=>/^image\//.test(f.type))){await insertImageFile(f,at); if(at) at={x:at.x+24,y:at.y+24};}});
@@ -2986,6 +2990,25 @@ async function newFromTemplate(){
   if(loadHTML(text,'new-lecture.html',null)){ S.dirty=true; updateFileName(); toast('New deck from the '+pick.name+' template. Replace the placeholders, delete the slides you don’t need, and Save to choose where it goes.'); }
 }
 
+
+/* ======================= PowerPoint import ======================= */
+const isPptx=f=>!!f&&(/\.pptx$/i.test(f.name||'')||f.type==='application/vnd.openxmlformats-officedocument.presentationml.presentation'||/\.ppt$/i.test(f.name||''));
+async function importPptx(file){
+  if(/\.ppt$/i.test(file.name)){ modal('Old PowerPoint format','Slidewright reads .pptx files. Open this .ppt in PowerPoint, Keynote or LibreOffice and save it as .pptx (PowerPoint Presentation), then open that.',[['OK',null,'primary']]); return; }
+  const prog=progressCard('Converting '+file.name); prog.set(0.05,'Loading the converter');
+  try{
+    await loadScript(['vendor/jszip-3.10.1/jszip.min.js','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'],()=>window.JSZip);
+    await loadScript(['pptx/pptx2reveal.js','https://www.jessetnroberts.com/slidewright/pptx/pptx2reveal.js'],()=>window.PptxToReveal);
+    const assets=await revealAssets(); prog.set(0.1,'Reading slides');
+    const {html,report}=await PptxToReveal.convert(await file.arrayBuffer(),{JSZip:window.JSZip,DOMParser,revealCss:assets&&assets.css,revealJs:assets&&assets.js,name:file.name,onProgress:(i,n)=>prog.set(0.1+0.85*i/n,`Slide ${i} of ${n}`)});
+    prog.close(); const name=file.name.replace(/\.pptx$/i,'.html');
+    if(!loadHTML(html,name,null)) return; S.dirty=true; updateFileName();
+    const list=report.warnings.length?el('ul',{},...report.warnings.map(w=>el('li',{text:w}))):null;
+    modal('PowerPoint opened',el('div',{class:'stack'},el('p',{text:`${report.slides} slide${report.slides===1?'':'s'} converted${report.mediaMB>1?`, with ${report.mediaMB} MB of pictures and media inside`:''}. Fonts PowerPoint has but this browser doesn’t are replaced by close matches.`}),
+      list?el('p',{class:'hint',text:'Not converted exactly:'}):null,list,el('p',{class:'hint',text:'Save keeps it as a Slidewright deck (.html); your PowerPoint file isn’t changed. Run Check to find pictures that need alt text.'})),[['OK',null,'primary']]);
+  }catch(e){ prog.close(); toast('Couldn’t open '+file.name+': '+(/central directory|zip/i.test(String(e&&e.message))?'the file looks damaged or isn’t a PowerPoint file.':(e&&e.message||e)),'warn'); }
+}
+
 /* ======================= code slides ======================= */
 const CODE_THEMES={
   dark:{bg:'#16181D',fg:'#E8EAF0',kw:'#9DB6F2',str:'#F7CDB0',num:'#F2B25A',com:'#959BA8',fn:'#7FD9A6',dec:'#C9A2F2',ln:'#7E8595',hl:'rgba(137,163,255,0.20)',bar:'#89A3FF'},
@@ -3117,7 +3140,7 @@ if(location.hash==='#present'&&window.opener){
   ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
 }
 
-window.__deckEditor={newFromTemplate,collectLayouts,layoutSection,stdLayouts,setSlides,buildCode,makeTable,slideTitle,cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={importPptx,newFromTemplate,collectLayouts,layoutSection,stdLayouts,setSlides,buildCode,makeTable,slideTitle,cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
 })();
 </script>
 

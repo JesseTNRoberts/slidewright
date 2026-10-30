@@ -498,6 +498,31 @@ test('New from a template opens the lecture template as a new, unsaved deck', as
   for (const t of ['Title slide', 'Table', 'Code', 'Equation']) assert(st.titles.includes(t), 'template lacks a ' + t + ' slide');
 });
 
+test('PowerPoint: a .pptx opens as a Slidewright deck with text, lists, pictures, table, chart, notes, builds and transitions', async page => {
+  await page.setInputFiles('#fileDeck', path.join(__dirname, 'fixtures/sample.pptx'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some(h => h.textContent === 'PowerPoint opened'), null, { timeout: 30000 });
+  const r = await page.evaluate(() => { const S = __deckEditor.S, sl = S.slides; const q = (i, sel) => sl[i].querySelectorAll(sel);
+    return { n: sl.length, name: S.name, titles: sl.map(s => s.dataset.title), h1: q(0, 'h1').length, li: q(1, 'li').length, frag: [...q(1, 'li.fragment, p.fragment')].map(x => x.dataset.fragmentIndex).join(','),
+      notes: (sl[1].querySelector('aside.notes') || {}).textContent, link: (q(1, 'a')[0] || {}).href, alt: [...q(3, 'img')].map(i => i.alt).concat([...q(3, '[role=img]')].map(x => x.getAttribute('aria-label'))),
+      th: q(4, 'th[scope=col]').length, td: q(4, 'td').length, chart: (q(5, 'svg[role=img]')[0] || { getAttribute: () => '' }).getAttribute('aria-label'),
+      trans: sl[2].getAttribute('data-transition'), hidden: sl[6].getAttribute('data-visibility'), fly: q(2, '.fragment.fade-up').length }; });
+  assert(r.n === 7 && r.name === 'sample.html', 'slides/name: ' + JSON.stringify([r.n, r.name]));
+  assert(r.titles[1] === 'What a layer computes' && r.h1 === 1, 'titles/headings wrong: ' + JSON.stringify(r.titles));
+  assert(r.li === 4 && r.frag === '0,1,2,3', 'bullets or build-by-paragraph wrong: ' + JSON.stringify([r.li, r.frag]));
+  assert(/bias does/.test(r.notes) && /pytorch\.org/.test(r.link), 'notes or link missing');
+  assert(r.alt.includes('Pink and blue halves') && r.alt.includes('Pink half only'), 'alt text lost: ' + r.alt);
+  assert(r.th === 3 && r.td === 6, 'table headers wrong: ' + JSON.stringify([r.th, r.td]));
+  assert(/2019 61/.test(r.chart), 'chart not described: ' + r.chart);
+  assert(r.trans === 'slide' && r.hidden === 'hidden' && r.fly === 1, 'transition, hidden slide or fly-in wrong: ' + JSON.stringify([r.trans, r.hidden, r.fly]));
+});
+
+test('PowerPoint converter also runs from the command line', async () => {
+  const out = path.join(require('os').tmpdir(), 'sw-cli.html');
+  require('child_process').execFileSync(process.execPath, [path.join(ROOT, 'pptx/convert.cjs'), path.join(__dirname, 'fixtures/sample.pptx'), out], { stdio: 'pipe' });
+  const h = fs.readFileSync(out, 'utf8');
+  assert((h.match(/<section/g) || []).length === 7 && h.includes('class="sw-present"') && h.includes('Reveal.initialize'), 'CLI output incomplete');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

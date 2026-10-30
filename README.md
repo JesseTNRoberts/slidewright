@@ -33,6 +33,7 @@ Slidewright is a visual editor for reveal.js HTML slide decks. Open a deck, chan
 - Work in a local copy of a repo: open from a folder, reopen recent decks, and Save writes straight back (Chrome and Edge)
 - Sign in with GitHub to open, commit and browse the history of decks in your repositories (needs the one-time relay setup in [`auth-relay/`](auth-relay/README.md); a personal access token also works)
 - **Present with Slidewright** button on every deck made by `board-to-reveal`: anyone can present with notes, timer, pen and laser; the deck remembers its GitHub file so Save goes back there for people with write access, and offers everyone else a copy
+- **Open PowerPoint files (.pptx)**: text, lists, shapes, pictures, video, tables, charts, SmartArt, notes, transitions and click animations become an editable Slidewright deck. The same converter runs on its own: `node pptx/convert.cjs talk.pptx` (see [`pptx/README.md`](pptx/README.md))
 - Open decks from Google Drive and save them back, with Drive's version history (needs the one-time Google Cloud setup in [`docs/GOOGLE-DRIVE.md`](docs/GOOGLE-DRIVE.md))
 - Compare the deck with its saved version, an older commit or another file, slide by slide
 

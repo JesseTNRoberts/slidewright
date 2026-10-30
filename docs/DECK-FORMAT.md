@@ -39,6 +39,10 @@ The converter that writes these decks lives in [`board-to-reveal/`](../board-to-
 | CSS `@keyframes` named `sN-…` in the deck's `<style>`, inline `animation:` on items | Animations that play on their click |
 | `data-live="N"` on a `<section>`, `data-lv='[[attribute, template],…]'` on items, and a `<script>` that sets `window.__LIVE` | Time-driven animation: the slide's own component runs while the slide is shown and rewrites those attributes; the attribute values saved in the file are the resting state |
 
+## Decks converted from PowerPoint
+
+`pptx/pptx2reveal.js` writes the same structure: one root `<div>` per slide holding absolutely positioned items; text boxes are a single element whose paragraphs (`<p>`, `<ul>`, `<ol>`) are its text; titles are `<h1>`/`<h2>`; PowerPoint animations become `fragment` classes with `data-fragment-index`.
+
 ## What Slidewright adds when it saves
 
 - Inline `style` changes on items you edit (colours are written as `rgb(…)`).

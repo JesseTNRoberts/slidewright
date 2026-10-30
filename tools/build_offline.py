@@ -1,6 +1,6 @@
 """Build a single-file offline copy of Slidewright.
 
-Inlines the bundled KaTeX and jsPDF so equations and PDF export work with no
+Inlines the bundled KaTeX, jsPDF, JSZip and the PowerPoint converter so equations, PDF export and .pptx import work with no
 network and no vendor/ folder next to the file. Decks made with "New blank deck"
 in the offline copy load reveal.js from jsDelivr, since the file can't read vendor/.
 
@@ -11,7 +11,7 @@ import pathlib, sys
 src, out = (pathlib.Path(p) for p in sys.argv[1:3])
 root = src.resolve().parent
 html = src.read_text(encoding="utf-8")
-libs = ["vendor/katex-0.16.9/katex.min.js", "vendor/jspdf-2.5.1/jspdf.umd.min.js"]
+libs = ["vendor/katex-0.16.9/katex.min.js", "vendor/jspdf-2.5.1/jspdf.umd.min.js", "vendor/jszip-3.10.1/jszip.min.js", "pptx/pptx2reveal.js"]
 inline = ""
 for rel in libs:
     code = (root / rel).read_text(encoding="utf-8").replace("</script", "<\\/script")
