@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Builds you can click through on the board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+/* Slidewright build preview (board-to-reveal 1.8). Paste into a slide's <helmet><style> when the slide has
+   data-build-step items. Put --step: {{step}} on the slide's root element and keep the Next/Reset buttons:
+   then Next, Reset and the Build "step" control show each click on the board, with its effect.
+   Items with a highlight effect take their resting text colour from --base (e.g. style="--base: #16181D"), not color.
+   The export ignores this block: each item becomes a reveal.js fragment with the same effect. */
+[data-build-step="1"]{--k:1}
+[data-build-step="2"]{--k:2}
+[data-build-step="3"]{--k:3}
+[data-build-step="4"]{--k:4}
+[data-build-step="5"]{--k:5}
+[data-build-step="6"]{--k:6}
+[data-build-step="7"]{--k:7}
+[data-build-step="8"]{--k:8}
+[data-build-step="9"]{--k:9}
+[data-build-step="10"]{--k:10}
+[data-build-step="11"]{--k:11}
+[data-build-step="12"]{--k:12}
+[data-build-step="13"]{--k:13}
+[data-build-step="14"]{--k:14}
+[data-build-step="15"]{--k:15}
+[data-build-step="16"]{--k:16}
+[data-build-step="17"]{--k:17}
+[data-build-step="18"]{--k:18}
+[data-build-step="19"]{--k:19}
+[data-build-step="20"]{--k:20}
+[data-build-step="21"]{--k:21}
+[data-build-step="22"]{--k:22}
+[data-build-step="23"]{--k:23}
+[data-build-step="24"]{--k:24}
+[data-build-step="25"]{--k:25}
+[data-build-step="26"]{--k:26}
+[data-build-step="27"]{--k:27}
+[data-build-step="28"]{--k:28}
+[data-build-step="29"]{--k:29}
+[data-build-step="30"]{--k:30}
+[data-build-step]{--on:clamp(0,calc(var(--step,99) - var(--k) + 1),1);--past:clamp(0,calc(var(--step,99) - var(--k)),1);opacity:var(--on);transition:opacity .35s ease,transform .35s ease,color .35s ease,text-decoration-color .35s ease}
+[data-build-effect="fade-up"]{transform:translateY(calc((1 - var(--on)) * 40px))}
+[data-build-effect="fade-down"]{transform:translateY(calc((var(--on) - 1) * 40px))}
+[data-build-effect="fade-left"]{transform:translateX(calc((1 - var(--on)) * 40px))}
+[data-build-effect="fade-right"]{transform:translateX(calc((var(--on) - 1) * 40px))}
+[data-build-effect="current-visible"],[data-build-effect="fade-in-then-out"]{opacity:calc(var(--on) - var(--past))}
+[data-build-effect="fade-in-then-semi-out"]{opacity:calc(var(--on) - var(--past) * .5)}
+[data-build-effect="fade-out"]{opacity:calc(1 - var(--on))}
+[data-build-effect="semi-fade-out"]{opacity:calc(1 - var(--on) * .5)}
+[data-build-effect="grow"]{opacity:1;transform:scale(calc(1 + var(--on) * .3))}
+[data-build-effect="shrink"]{opacity:1;transform:scale(calc(1 - var(--on) * .3))}
+[data-build-effect="highlight-red"]{opacity:1;color:color-mix(in srgb,#FF2C2D calc(var(--on) * 100%),var(--base,currentColor))!important}
+[data-build-effect="highlight-green"]{opacity:1;color:color-mix(in srgb,#17FF2E calc(var(--on) * 100%),var(--base,currentColor))!important}
+[data-build-effect="highlight-blue"]{opacity:1;color:color-mix(in srgb,#1B91FF calc(var(--on) * 100%),var(--base,currentColor))!important}
+[data-build-effect="strike"]{opacity:1;text-decoration:line-through;text-decoration-color:color-mix(in srgb,currentColor calc(var(--on) * 100%),transparent)}
+@media (prefers-reduced-motion:reduce){[data-build-step]{transition:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden; --step: {{step}}">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Builds you can click through on the board</div>
+<div data-build-step="1" style="position: absolute; left: 64px; top: 200px; font-size: 28px">First point fades in</div>
+<div data-build-step="2" data-build-effect="fade-up" style="position: absolute; left: 64px; top: 260px; font-size: 28px">Second point flies up</div>
+<div data-build-step="2" data-build-effect="fade-out" style="position: absolute; left: 64px; top: 400px; font-size: 22px">This hint leaves on click 2</div>
+<div data-build-step="3" data-build-effect="highlight-red" style="position: absolute; left: 64px; top: 320px; font-size: 28px; --base: #16181D">Turns red on click 3</div>
+<div style="position: absolute; left: 64px; top: 600px; display: flex; gap: 8px"><button onClick="{{reset}}">Reset</button><button onClick="{{next}}">Next</button></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"int","default":3,"min":0,"max":3,"section":"Build"},"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+renderVals() {
+var self = this; var step = this.state.step; if (step === undefined || step === null) { step = this.props.step ?? 3; }
+return { step: step, next: function () { self.setState({ step: Math.min(3, step + 1) }); }, reset: function () { self.setState({ step: 0 }); } };
+}
+}
+</script>
+</body>
+</html>

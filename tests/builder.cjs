@@ -153,6 +153,16 @@ test('Present with Slidewright: the deck sends itself to Slidewright, which know
   assert(!deck.errors.length, 'deck error: ' + deck.errors[0]);
 });
 
+test('build-preview slides export as single items that appear on click, with their effects, editable in Slidewright', async page => {
+  const i = await page.evaluate(() => __deckEditor.S.slides.findIndex(s => /click through on the board/.test(s.dataset.title)));
+  assert(i >= 0, 'build-preview slide missing');
+  const r = await page.evaluate(i => { const s = __deckEditor.S.slides[i]; return { layers: s.querySelectorAll('.step-layer').length, frags: [...s.querySelectorAll('.fragment')].map(f => [...f.classList].filter(c => c !== 'fragment').join(' ') + '@' + f.dataset.fragmentIndex) }; }, i);
+  assert(r.layers === 0, 'build-preview slide became full-slide copies');
+  assert(r.frags.join(',') === '@0,fade-up@1,fade-out@1,highlight-red@2', 'fragments/effects wrong: ' + r.frags);
+  await page.evaluate(i => { __deckEditor.go(i); __deckEditor.setSel([__deckEditor.S.slides[i].querySelector('.fragment.fade-up')]); }, i);
+  assert(await page.inputValue('#bFx') === 'fade-up', 'Slidewright does not show the item\'s effect');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;

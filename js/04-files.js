@@ -18,6 +18,8 @@ function serialize(){
   if(editing) editing.setAttribute('contenteditable','true');
   if(S.gh&&doc.head){ let m=doc.head.querySelector('meta[name="slidewright-source"]'); if(!m){ m=doc.createElement('meta'); m.setAttribute('name','slidewright-source'); doc.head.insertBefore(m,doc.head.querySelector('title')||null); }
     m.setAttribute('content',`github:${S.gh.owner}/${S.gh.repo}@${S.gh.branch}:${S.gh.path}`); }
+  /* highlight effects must beat an item's own inline colour */
+  if(doc.head&&S.slides.some(x=>x.querySelector('.fragment[class*="highlight-"]'))&&!doc.getElementById('slidewright-fx')){ const st=doc.createElement('style'); st.id='slidewright-fx'; st.textContent='.reveal .slides section .fragment.highlight-red.visible{color:#ff2c2d!important}.reveal .slides section .fragment.highlight-green.visible{color:#17ff2e!important}.reveal .slides section .fragment.highlight-blue.visible{color:#1b91ff!important}'; doc.head.appendChild(st); }
   const dt=doc.doctype?'<!DOCTYPE '+doc.doctype.name+'>':'<!doctype html>';
   const html=dt+'\n'+doc.documentElement.outerHTML; host.replaceChildren(); return html;
 }

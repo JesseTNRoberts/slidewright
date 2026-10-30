@@ -287,6 +287,8 @@ function tagMovers(html, positions) { // positions: array per mover of {step: "l
   return html.replace(MOVER, (all, tag, pre, st) => '<' + tag + pre + "data-pos='" + JSON.stringify(positions[i++]) + "' style=\"" + st + '"');
 }
 
+// click effects a board item can ask for with data-build-effect (reveal.js fragment styles; Slidewright edits the same list)
+const BUILD_EFFECTS = ['fade-up', 'fade-down', 'fade-left', 'fade-right', 'current-visible', 'fade-in-then-out', 'fade-in-then-semi-out', 'fade-out', 'semi-fade-out', 'grow', 'shrink', 'highlight-red', 'highlight-green', 'highlight-blue', 'strike'];
 const sections = [];
 const liveScripts = [];
 let usesMath = false;
@@ -296,11 +298,20 @@ order.forEach((file, n) => {
   const slide = readSlide(file);
   if (slide.live) { checkLive(slide); liveScripts.push('__LIVE[' + N + ']=function(DCLogic){\n' + slide.script + '\nreturn Component;};'); }
   let inner, title;
-  if (!slide.steps) {
-    inner = prefixIds(renderSlide(slide, null), 's' + N + '-');
+  // A build-preview slide (see build-preview.css): the step only sets --step on the root, so every step renders the
+  // same markup apart from that number. It exports once, at its last step, with each data-build-step item a fragment.
+  const noStep = h => h.replace(/\s*--step:\s*-?\d+\s*;?/g, '');
+  let renders = null, buildOnly = false;
+  if (slide.steps && /data-build-step=/.test(slide.body) && /--step:\s*\{\{/.test(slide.body)) {
+    renders = []; for (let k = 0; k <= slide.steps; k++) renders.push(renderSlide(slide, k));
+    buildOnly = renders.every(r => noStep(r) === noStep(renders[0]));
+    if (!buildOnly) unsupported(file, 'a slide with --step: {{step}} (build preview) whose steps also change other content; use data-build-step items only, or drop --step and use step layers');
+  }
+  if (!slide.steps || buildOnly) {
+    inner = prefixIds(buildOnly ? noStep(renders[slide.steps]) : renderSlide(slide, null), 's' + N + '-');
     title = titleOf(inner);
   } else {
-    const renders = [];
+    renders = [];
     for (let k = 0; k <= slide.steps; k++) renders.push(renderSlide(slide, k));
     title = titleOf(renders[0]);
     // group steps into layers; an animated step extends the current layer
@@ -337,7 +348,12 @@ order.forEach((file, n) => {
   // board step builds
   inner = inner.replace(/<([a-zA-Z]+)\b([^>]*?\bdata-build-step="(\d+)"[^>]*?)(\/?)>/g, (m, tag, attrs, k, sc) => {
     const idx = ' data-fragment-index="' + (k - 1) + '"';
-    return /\bclass="/.test(attrs) ? '<' + tag + attrs.replace(/\bclass="/, 'class="fragment ') + idx + sc + '>' : '<' + tag + attrs + ' class="fragment"' + idx + sc + '>';
+    const fxm = /\sdata-build-effect="([\w-]*)"/.exec(attrs); const fx = fxm ? fxm[1] : '';
+    if (fx && !BUILD_EFFECTS.includes(fx)) unsupported(file, 'data-build-effect="' + fx + '" (use one of: ' + BUILD_EFFECTS.join(', ') + ')');
+    // --base (the resting colour of a highlight item on the board) becomes the item's colour
+    attrs = attrs.replace(/(\sstyle="[^"]*?)--base:\s*([^;"]+)/, '$1color: $2');
+    const cls = 'fragment' + (fx ? ' ' + fx : '');
+    return /\bclass="/.test(attrs) ? '<' + tag + attrs.replace(/\bclass="/, 'class="' + cls + ' ') + idx + sc + '>' : '<' + tag + attrs + ' class="' + cls + '"' + idx + sc + '>';
   });
   if (/\\\(|\\\[/.test(inner)) usesMath = true;
   // student extras: download button on the title slide, copyright line on every slide
@@ -389,6 +405,8 @@ html,body{background:#FBFBFA}
 .reveal .slides section .fragment.step-layer{transition:opacity .35s ease}
 .reveal .controls,.reveal .progress{color:#2557D6}
 [data-build-dot]{transition:cx .55s ease, cy .55s ease, opacity .3s;opacity:0}
+/* emphasis effects win over an item's own colour */
+.reveal .slides section .fragment.highlight-red.visible{color:#ff2c2d!important}.reveal .slides section .fragment.highlight-green.visible{color:#17ff2e!important}.reveal .slides section .fragment.highlight-blue.visible{color:#1b91ff!important}
 ${animCss}
 ${extras.CSS}
 ${OPT.present ? extras.PRESENT_CSS : ''}

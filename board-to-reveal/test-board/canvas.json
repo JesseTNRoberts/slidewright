@@ -1,91 +1,100 @@
 {
- "v": 3,
- "title": "Converter test board",
- "launch": {
-  "view": "canvas"
- },
- "pages": [
-  {
-   "id": "deck",
-   "name": "Deck"
+  "v": 3,
+  "title": "Converter test board",
+  "launch": {
+    "view": "canvas"
   },
-  {
-   "id": "hidden",
-   "name": "Hidden"
-  }
- ],
- "boards": {
-  "Static.dc.html": {
-   "x": 0,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "Static slide with a list"
+  "pages": [
+    {
+      "id": "deck",
+      "name": "Deck"
+    },
+    {
+      "id": "hidden",
+      "name": "Hidden"
+    }
+  ],
+  "boards": {
+    "Static.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Static slide with a list"
+    },
+    "Steps.dc.html": {
+      "x": 1360,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Click steps (click Next)",
+      "is_interactive": true
+    },
+    "Builds.dc.html": {
+      "x": 2720,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Build steps, a marker and an equation"
+    },
+    "Keyframes.dc.html": {
+      "x": 4080,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "CSS animation on a click (click Next)",
+      "is_interactive": true
+    },
+    "LiveLoop.dc.html": {
+      "x": 5440,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Time-driven loop"
+    },
+    "LiveSteps.dc.html": {
+      "x": 6800,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Time-driven click steps (click Next)",
+      "is_interactive": true
+    },
+    "Question.dc.html": {
+      "x": 8160,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "A question (question)"
+    },
+    "Hidden.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "A hidden slide",
+      "page": "hidden"
+    },
+    "PreviewBuilds.dc.html": {
+      "x": 9520,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Builds you can click through on the board (click Next)",
+      "is_interactive": true
+    }
   },
-  "Steps.dc.html": {
-   "x": 1360,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "Click steps (click Next)",
-   "is_interactive": true
-  },
-  "Builds.dc.html": {
-   "x": 2720,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "Build steps, a marker and an equation"
-  },
-  "Keyframes.dc.html": {
-   "x": 4080,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "CSS animation on a click (click Next)",
-   "is_interactive": true
-  },
-  "LiveLoop.dc.html": {
-   "x": 5440,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "Time-driven loop"
-  },
-  "LiveSteps.dc.html": {
-   "x": 6800,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "Time-driven click steps (click Next)",
-   "is_interactive": true
-  },
-  "Question.dc.html": {
-   "x": 8160,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "A question (question)"
-  },
-  "Hidden.dc.html": {
-   "x": 0,
-   "y": 0,
-   "w": 1280,
-   "h": 720,
-   "title": "A hidden slide",
-   "page": "hidden"
-  }
- },
- "order": [
-  "Static.dc.html",
-  "Steps.dc.html",
-  "Builds.dc.html",
-  "Keyframes.dc.html",
-  "LiveLoop.dc.html",
-  "LiveSteps.dc.html",
-  "Question.dc.html",
-  "Hidden.dc.html"
- ],
- "notes": {},
- "designSystems": []
+  "order": [
+    "Static.dc.html",
+    "Steps.dc.html",
+    "Builds.dc.html",
+    "Keyframes.dc.html",
+    "LiveLoop.dc.html",
+    "LiveSteps.dc.html",
+    "PreviewBuilds.dc.html",
+    "Question.dc.html",
+    "Hidden.dc.html"
+  ],
+  "notes": {},
+  "designSystems": []
 }
