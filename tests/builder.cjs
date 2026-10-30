@@ -14,7 +14,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'sw-builder-'));
 const DECK = path.join(TMP, 'test-board.html');
 const SAVED = path.join(TMP, 'saved.html');
 const SOURCE = 'JesseTNRoberts/lectures@main:week1/test-board.html';
-execFileSync(process.execPath, [path.join(ROOT, 'board-to-reveal/build.js'), path.join(ROOT, 'board-to-reveal/test-board'), DECK, '--source=' + SOURCE], { stdio: 'inherit' });
+const BOARD = 'https://claude.ai/artifact/00000000-test-board';
+execFileSync(process.execPath, [path.join(ROOT, 'board-to-reveal/build.js'), path.join(ROOT, 'board-to-reveal/test-board'), DECK, '--source=' + SOURCE, '--board=' + BOARD], { stdio: 'inherit' });
 
 const canvas = JSON.parse(fs.readFileSync(path.join(ROOT, 'board-to-reveal/test-board/canvas.json'), 'utf8'));
 const VISIBLE = canvas.order.filter(n => canvas.boards[n].page !== 'hidden').length;
@@ -161,6 +162,48 @@ test('build-preview slides export as single items that appear on click, with the
   assert(r.frags.join(',') === '@0,fade-up@1,fade-out@1,highlight-red@2', 'fragments/effects wrong: ' + r.frags);
   await page.evaluate(i => { __deckEditor.go(i); __deckEditor.setSel([__deckEditor.S.slides[i].querySelector('.fragment.fade-up')]); }, i);
   assert(await page.inputValue('#bFx') === 'fade-up', 'Slidewright does not show the item\'s effect');
+});
+
+test('round trip: edits and notes to Claude come back as a per-slide report, and Send to Claude opens Claude with the request', async (page, ctx) => {
+  const i = await page.evaluate(() => __deckEditor.S.slides.findIndex(s => s.getAttribute('data-board-slide') === 'Static.dc.html'));
+  assert(i >= 0, 'sections are not tagged with their board file');
+  assert(await page.evaluate(() => __deckEditor.S.doc.querySelector('meta[name="slidewright-board"]').content) === BOARD, 'board address missing from the deck');
+  await page.evaluate(i => { __deckEditor.go(i); const s = __deckEditor.S.slides[i];
+    const t = [...s.querySelectorAll('div')].find(d => d.textContent === 'Static slide with a list'); t.textContent = 'Static slide, edited';
+    t.nextElementSibling.firstElementChild.style.color = 'rgb(194, 81, 15)'; __deckEditor.commit('test'); }, i);
+  // a note on the list, through the ribbon
+  await page.evaluate(i => __deckEditor.setSel([[...__deckEditor.S.slides[i].querySelectorAll('div')].find(d => d.textContent === 'Static slide, edited').nextElementSibling]), i);
+  await page.click('#tab-review'); await page.click('#rp-review [data-fn="addClaudeNote"]');
+  await page.fill('.modal textarea', 'Make this list a two-column comparison'); await page.click('.modal .btn.primary'); await wait(150);
+  await page.keyboard.press('Escape'); await page.evaluate(() => __deckEditor.setSel([]));
+  await page.click('#rp-review [data-fn="addClaudeNote"]'); await page.fill('.modal textarea', 'Add a worked example after this slide'); await page.click('.modal .btn.primary'); await wait(150);
+  assert(await page.locator('.sw-note-pin').count() === 2, 'note pins not shown on the slide');
+  assert(await page.textContent('#rNoteCount') === '2', 'note count not shown on the ribbon');
+  const html = await page.evaluate(() => __deckEditor.serialize());
+  const SAVED2 = path.join(TMP, 'roundtrip.html'); fs.writeFileSync(SAVED2, html);
+  const { diff, report } = require(path.join(ROOT, 'board-to-reveal/diff.js'));
+  const r = diff(DECK, SAVED2);
+  assert(r.board === BOARD, 'diff lost the board address');
+  const st = r.slides.find(x => x.boardSlide === 'Static.dc.html');
+  assert(st.changes.some(c => c.kind === 'text' && c.after === 'Static slide, edited'), 'text edit not reported: ' + JSON.stringify(st.changes));
+  assert(st.changes.some(c => c.kind === 'style' && /color/.test(c.changes.join())), 'colour edit not reported');
+  assert(st.notesToClaude.length === 2 && st.notesToClaude.some(n => /two-column/.test(n.text) && n.on) && st.notesToClaude.some(n => !n.on), 'notes wrong: ' + JSON.stringify(st.notesToClaude));
+  const noisy = r.slides.filter(x => x.boardSlide !== 'Static.dc.html' && (x.changes.length || x.status !== 'kept'));
+  assert(!noisy.length, 'untouched slides reported as changed: ' + JSON.stringify(noisy.map(x => [x.boardSlide, x.status, x.changes.slice(0, 3)])));
+  assert(!r.order, 'order reported as changed');
+  assert(/Note to Claude\*\* about div/.test(report(r)), 'report does not name the note\'s item');
+  // notes never show when presenting
+  const deck = await present(ctx, SAVED2);
+  const shown = await deck.evaluate(() => [...document.querySelectorAll('.sw-claude-notes')].map(a => getComputedStyle(a).display));
+  assert(shown.length === 1 && shown.every(d => d === 'none'), 'notes visible when presenting: ' + shown);
+  await deck.close();
+  // Send to Claude with the deck on Google Drive
+  await page.evaluate(() => { const S = __deckEditor.S; S.gdrive = { id: 'abc', link: 'https://drive.google.com/file/d/abc/view' }; S.dirty = false; window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; }; });
+  await page.evaluate(() => { __deckEditor.sendToClaude(); }); await page.waitForSelector('.modal'); await page.click('.modal .btn.primary'); await wait(200);
+  const opened = await page.evaluate(() => window.__opened[0] || '');
+  const q = decodeURIComponent((opened.split('?q=')[1] || '').replace(/\+/g, ' '));
+  assert(opened.startsWith('https://claude.ai/new?q='), 'Claude not opened: ' + opened);
+  assert(q.includes(BOARD) && q.includes('https://drive.google.com/file/d/abc/view') && /2 notes/.test(q), 'request text wrong: ' + q);
 });
 
 /* ---------------------------------------------------------------- runner */

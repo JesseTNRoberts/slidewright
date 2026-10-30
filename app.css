@@ -359,3 +359,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* the ribbon's Home tab carries these, so the panel drops them (the controls stay in the page: the ribbon works through them) */
 #insp .in-ribbon{display:none}
 @media (max-width:860px){ #insp .in-ribbon{display:revert} }
+/* notes to Claude */
+.sw-note-pin{position:absolute;z-index:7;width:22px;height:22px;padding:0;border:1.5px solid #8A5A00;border-radius:5px 5px 5px 1px;background:#FFD45C;color:#3D2800;font:600 11px/1 var(--mono);cursor:pointer;pointer-events:auto;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw-note-pin:hover,.sw-note-pin:focus-visible{background:#FFC21F;outline:2px solid var(--accent);outline-offset:1px}
+.tb .cnt{min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#FFD45C;color:#3D2800;font:600 10.5px/16px var(--mono);text-align:center;box-sizing:border-box}

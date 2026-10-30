@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // convert.js — one command from a downloaded art board to a reveal.js deck.
 //
-//   node convert.js <board> [out.html] [--check] [--copyright="Name"] [--year=YYYY] [--no-copyright] [--no-pdf] [--no-present] [--source=owner/repo@branch:path]
+//   node convert.js <board> [out.html] [--check] [--copyright="Name"] [--year=YYYY] [--no-copyright] [--no-pdf] [--no-present] [--source=owner/repo@branch:path] [--board=<board artifact URL>]
 //
 // <board> may be:
 //   * a folder holding canvas.json and the *.dc.html slides (or a project/ folder inside it)

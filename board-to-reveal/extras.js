@@ -104,6 +104,8 @@ window.SW_present={open:open,source:source,rebuild:rebuild};
 document.querySelectorAll('.sw-present').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation(); open(); }); });
 })();` + '\n</script>';
 const sourceMeta = src => src ? `<meta name="slidewright-source" content="${esc(/^github:/.test(src) ? src : 'github:' + src)}">` : '';
+// Where the deck came from, so Claude can bring Slidewright edits back to the board (see diff.js).
+const boardMeta = (board, version) => board ? `<meta name="slidewright-board" content="${esc(board)}">\n<meta name="slidewright-board-export" content="${esc(new Date().toISOString())} board-to-reveal ${esc(version || '')}">` : '';
 
 // Screen readers hear the notice once (title slide), not on every slide.
 const copyright = (n, holder, year) =>
@@ -291,7 +293,8 @@ function options(argv) {
     pdf: !argv.includes('--no-pdf'),
     present: !argv.includes('--no-present'),
     slidewright: get('slidewright') || DEFAULT_SLIDEWRIGHT,
-    source: get('source') || ''
+    source: get('source') || '',
+    board: get('board') || ''
   };
 }
 
@@ -340,4 +343,4 @@ function applyPresent(html, opt) {
   return { html, slides: (html.match(/<section[\s>]/g) || []).length };
 }
 
-module.exports = { PRESENT_CSS, presentButton, CAPTURE, presentRuntime, sourceMeta, applyPresent, CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };
+module.exports = { PRESENT_CSS, presentButton, CAPTURE, presentRuntime, sourceMeta, boardMeta, applyPresent, CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };
