@@ -460,7 +460,10 @@ test('pictures: crop keeps the rest in place, can be undone, and Compress shrink
   await page.evaluate(() => { const D = __deckEditor; const cv = document.createElement('canvas'); cv.width = 2000; cv.height = 1200; const g = cv.getContext('2d'); const d = g.createImageData(2000, 1200); for (let i = 0; i < d.data.length; i += 4) { d.data[i] = (i * 7) % 255; d.data[i + 1] = (i * 13) % 255; d.data[i + 2] = (i * 3) % 255; d.data[i + 3] = 255; } g.putImageData(d, 0, 0);
     const im = document.createElement('img'); im.id = 'tbig'; im.alt = 'Noise'; im.src = cv.toDataURL('image/png'); im.style.cssText = 'position: absolute; left: 50px; top: 50px; width: 200px; height: 120px'; D.S.slides[2].querySelector(':scope > div').appendChild(im); D.commit('t'); });
   const before = await page.evaluate(() => document.getElementById('tbig').getAttribute('src').length);
-  await page.evaluate(() => __deckEditor.compressImages()); await page.waitForFunction(b => document.getElementById('tbig').getAttribute('src').length < b * 0.5, before, { timeout: 20000 });
+  await page.evaluate(() => __deckEditor.compressImages());
+  await page.waitForFunction(b => document.getElementById('tbig').getAttribute('src').length < b * 0.5, before, { timeout: 20000 }).catch(async e => {
+    const why = await page.evaluate(() => ({ toasts: [...document.querySelectorAll('.toast')].map(t => t.textContent), src: document.getElementById('tbig').getAttribute('src').slice(0, 40), len: document.getElementById('tbig').getAttribute('src').length, nw: document.getElementById('tbig').naturalWidth }));
+    throw new Error('compress did not shrink the picture: ' + JSON.stringify(why) + ' before ' + before); });
   assert(await page.evaluate(() => document.getElementById('tbig').naturalWidth <= 400), 'compressed picture is still bigger than twice its shown size');
 });
 
