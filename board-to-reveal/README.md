@@ -38,7 +38,9 @@ Every deck has a small **Present with Slidewright** button in the top-right corn
 
 Saving from there: if the deck knows its GitHub file (`--source`), Save commits back to it for anyone signed in with write access; everyone else is offered a download, Google Drive, or their own GitHub repo. Decks opened from a file on disk send Slidewright the source they remembered before reveal.js started, since a file cannot read itself.
 
-For a deck exported earlier, `node add-extras.js deck.html [out.html] [--source=…]` adds just the button.
+For a deck exported earlier, `node add-extras.js deck.html [out.html] [--source=…]` adds just the button, or updates an older one.
+
+The deck normally hands itself to Slidewright by message. Some pages cut the tie between the two windows (Claude's file preview, and any page sent with `Cross-Origin-Opener-Policy`); there the deck travels inside the link instead, compressed, when it fits (about 1.9 MB of link, which covers most lectures). A bigger deck shows a note asking you to download it and open it in Slidewright.
 
 ## Bring Slidewright edits back to the board
 

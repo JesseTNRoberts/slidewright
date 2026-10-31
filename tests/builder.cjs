@@ -33,6 +33,7 @@ const server = http.createServer((q, r) => {
 
 const tests = []; const test = (name, fn) => tests.push({ name, fn });
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
+const SW_PACK_OK = k => typeof k === 'string' && k.length > 1000;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let BASE, browser;
 
@@ -152,6 +153,34 @@ test('Present with Slidewright: the deck sends itself to Slidewright, which know
   assert((rebuilt.match(/<script/g) || []).length === (file.match(/<script/g) || []).length, 'rebuilt deck has a different number of scripts');
   assert(!sw.errors.length, 'Slidewright error: ' + sw.errors[0]);
   assert(!deck.errors.length, 'deck error: ' + deck.errors[0]);
+});
+
+test('Present with Slidewright from a preview that cuts the tie between windows (Claude, Cross-Origin-Opener-Policy): the deck travels in the link', async (page, ctx) => {
+  await ctx.route(/^https:\/\/www\.jessetnroberts\.com\/slidewright\//, r => { const p = new URL(r.request().url()).pathname.replace(/^\/slidewright\//, '') || 'index.html'; const f = path.join(ROOT, p);
+    if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
+    r.fulfill({ status: 200, contentType: TYPES[path.extname(f)] || 'application/octet-stream', body: fs.readFileSync(f) }); });
+  // a chat-like host: its own page sends COOP same-origin and shows the deck in a sandboxed iframe from another origin
+  const deckHtml = fs.readFileSync(DECK);
+  await ctx.route('https://preview.example/deck.html', r => r.fulfill({ status: 200, contentType: 'text/html', body: deckHtml }));
+  await ctx.route('https://chat.example/', r => r.fulfill({ status: 200, contentType: 'text/html', headers: { 'cross-origin-opener-policy': 'same-origin' },
+    body: '<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" src="https://preview.example/deck.html" style="width:1200px;height:700px"></iframe>' }));
+  const host = await ctx.newPage(); await host.goto('https://chat.example/');
+  const fr = () => host.frames().find(f => f.url().startsWith('https://preview.example/'));
+  await host.waitForFunction(() => true); for (let i = 0; i < 50 && !fr(); i++) await wait(100);
+  await fr().waitForFunction(() => window.Reveal && Reveal.isReady() && window.SW_present && SW_present.packed() && SW_present.packed() !== 'pending', null, { timeout: 20000 });
+  assert(SW_PACK_OK(await fr().evaluate(() => SW_present.packed())), 'deck did not pack itself for the link');
+  await fr().evaluate(() => Reveal.slide(2));
+  const [sw] = await Promise.all([ctx.waitForEvent('page'), fr().evaluate(() => document.querySelector('.sw-present').click())]);
+  sw.errors = []; sw.on('pageerror', e => sw.errors.push(e.message));
+  await sw.waitForFunction(() => { const h = document.querySelector('.modal h2'); return h && /^Present /.test(h.textContent); }, null, { timeout: 20000 });
+  const st = await sw.evaluate(() => ({ opener: !!window.opener, n: __deckEditor.S.slides.length, name: __deckEditor.S.name, cur: __deckEditor.S.cur, hash: location.hash, gh: __deckEditor.S.gh }));
+  assert(!st.opener, 'the test host did not cut the tie between windows');
+  assert(st.n === ALL || st.n === VISIBLE, 'Slidewright got ' + st.n + ' slides');
+  assert(st.name === 'deck.html', 'deck name: ' + st.name);
+  assert(st.cur > 0, 'did not start from the slide the deck was on');
+  assert(st.hash === '', 'the deck-sized address was left in the address bar');
+  assert(st.gh && st.gh.repo === 'lectures', 'GitHub source not read from the deck sent in the link');
+  assert(!sw.errors.length, 'Slidewright error: ' + sw.errors[0]);
 });
 
 test('build-preview slides export as single items that appear on click, with their effects, editable in Slidewright', async page => {

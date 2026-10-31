@@ -95,12 +95,34 @@ function source(){ var fall=function(){ var h=rebuild(); return h?{html:h,exact:
   if(!/^https?:$/.test(location.protocol)) return Promise.resolve(fall());
   return fetch(location.href.split('#')[0],{cache:'force-cache'}).then(function(r){ return r.ok?r.text().then(function(t){ return {html:t,exact:true}; }):fall(); }).catch(fall); }
 function name(){ var n=decodeURIComponent(location.pathname.split('/').pop()||''); return /\.html?$/i.test(n)?n:((document.title||'lecture').replace(/[\/:*?"<>|]+/g,'')+'.html'); }
-function open(){ var w=window.open(SW+'#present','_blank'); if(!w){ alert('Allow pop-ups for this page to present with Slidewright.'); return; }
+function slide(){ return window.Reveal&&Reveal.getIndices?Reveal.getIndices().h:0; }
+function pageUrl(){ return /^https?:$/.test(location.protocol)?location.href.split('#')[0]:''; }
+/* The deck also travels inside the link (gzip, base64url, after the #), for pages that cut the tie between
+   this window and the one it opens: Claude's file preview and other pages with Cross-Origin-Opener-Policy.
+   There window.open returns null and postMessage has no window to reach. Prepared ahead, so the click stays a click. */
+var LIMIT=1950000, packed=null;
+function pack(){ if(packed||!window.CompressionStream||!window.Response) return; packed='pending';
+  source().then(function(r){ if(!r){ packed=null; return; }
+    var data=JSON.stringify({html:r.html,exact:r.exact,name:name(),url:pageUrl()});
+    return new Response(new Blob([data]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer().then(function(buf){
+      var b=new Uint8Array(buf), s='', i; for(i=0;i<b.length;i+=32768) s+=String.fromCharCode.apply(null,b.subarray(i,i+32768));
+      var z=btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); packed=z.length<LIMIT?z:'big'; }); }).catch(function(){ packed=null; }); }
+function notice(t){ var n=document.getElementById('sw-present-note'); if(!n){ n=document.createElement('div'); n.id='sw-present-note'; n.setAttribute('role','status');
+    n.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;max-width:min(560px,90vw);padding:12px 16px;border-radius:8px;background:#16181D;color:#FBFBFA;font:14px/1.45 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)';
+    document.body.appendChild(n); } n.textContent=t; clearTimeout(n._t); n._t=setTimeout(function(){ n.remove(); },14000); }
+function open(waited){ if(packed==='pending'&&(waited||0)<2500){ setTimeout(function(){ open((waited||0)+100); },100); return; }
+  var z=(packed&&packed!=='pending'&&packed!=='big')?packed:'';
+  var w=window.open(SW+'#present'+(z?'&s='+slide()+'&z='+z:''),'_blank');
+  if(!w){ if(z) return; /* opened without a handle; the deck went in the link */
+    notice(packed==='big'
+      ? 'If Slidewright opened without your slides: this page won’t let the deck pass to it, and the deck is too big to send in a link. Download the deck and open it in Slidewright, or present it from your website.'
+      : 'Slidewright couldn’t open. Allow pop-ups for this page, then try again.'); return; }
   var src=source();
   function onMsg(e){ if(e.source!==w||!e.data||e.data.type!=='slidewright-ready') return; window.removeEventListener('message',onMsg);
-    src.then(function(r){ if(!r){ return; } w.postMessage({type:'slidewright-deck',html:r.html,exact:r.exact,name:name(),url:/^https?:$/.test(location.protocol)?location.href.split('#')[0]:'',slide:(window.Reveal&&Reveal.getIndices?Reveal.getIndices().h:0)},ORIGIN); }); }
+    src.then(function(r){ if(!r){ return; } w.postMessage({type:'slidewright-deck',html:r.html,exact:r.exact,name:name(),url:pageUrl(),slide:slide()},ORIGIN); }); }
   window.addEventListener('message',onMsg); }
-window.SW_present={open:open,source:source,rebuild:rebuild};
+if(document.readyState==='complete') setTimeout(pack,800); else window.addEventListener('load',function(){ setTimeout(pack,800); });
+window.SW_present={open:open,source:source,rebuild:rebuild,pack:pack,packed:function(){ return packed; }};
 document.querySelectorAll('.sw-present').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation(); open(); }); });
 })();` + '\n</script>';
 const sourceMeta = src => src ? `<meta name="slidewright-source" content="${esc(/^github:/.test(src) ? src : 'github:' + src)}">` : '';
@@ -302,7 +324,9 @@ function options(argv) {
 function apply(html, opt) {
   if (/class="(pdf-get|slide-copy)"/.test(html)) {
     if (opt.present && !/class="sw-present"/.test(html)) return Object.assign(applyPresent(html, opt), { presentOnly: true });
-    throw new Error('this deck already has the PDF button, copyright line and Present button');
+    const up = updatePresent(html);
+    if (up) return { html: up, slides: (up.match(/<section[\s>]/g) || []).length, presentUpdated: true };
+    throw new Error('this deck already has the PDF button, copyright line and the current Present button');
   }
   const he = html.indexOf('</head>');
   const se = html.lastIndexOf('</style>', he);
@@ -328,6 +352,15 @@ function apply(html, opt) {
 }
 
 // Add only the "Present with Slidewright" button (and the deck's GitHub location, if given).
+// Swap an older Present-with-Slidewright script for the current one (same Slidewright address), so decks exported
+// before 1.9.1 can also present from pages that cut the tie between windows (Claude's file preview). null if current.
+const RUNTIME_RE = /<script>\n\(function\(\)\{\nvar SW=("[^"\n]*"), ORIGIN=[\s\S]*?window\.SW_present=\{[^\n]*\n[^\n]*\n\}\)\(\);\n<\/script>/;
+function updatePresent(html) {
+  const m = html.match(RUNTIME_RE);
+  if (!m || /pack:pack/.test(m[0])) return null;
+  const fresh = presentRuntime(JSON.parse(m[1]));
+  return html.slice(0, m.index) + fresh + html.slice(m.index + m[0].length);
+}
 function applyPresent(html, opt) {
   if (/class="sw-present"/.test(html)) throw new Error('this deck already has the Present button');
   const he = html.indexOf('</head>'), se = html.lastIndexOf('</style>', he);
@@ -343,4 +376,4 @@ function applyPresent(html, opt) {
   return { html, slides: (html.match(/<section[\s>]/g) || []).length };
 }
 
-module.exports = { PRESENT_CSS, presentButton, CAPTURE, presentRuntime, sourceMeta, boardMeta, applyPresent, CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };
+module.exports = { updatePresent, PRESENT_CSS, presentButton, CAPTURE, presentRuntime, sourceMeta, boardMeta, applyPresent, CSS, BUTTON, copyright, jspdfScript, runtimeScript, options, apply, DEFAULT_HOLDER };

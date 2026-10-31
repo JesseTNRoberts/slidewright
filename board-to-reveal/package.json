@@ -1,6 +1,6 @@
 {
   "name": "board-to-reveal",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "description": "Convert a Design art-board lecture deck into one self-contained reveal.js HTML file.",
   "bin": {
