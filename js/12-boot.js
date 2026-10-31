@@ -2,7 +2,7 @@
 'use strict';
 /* ======================= boot ======================= */
 S.sample=true; loadHTML(sampleDeck(),'sample-deck.html',null); S.sample=false;
-if(location.hash!=='#present') checkRecovery();
+if(!/^#present\b/.test(location.hash)) checkRecovery();
 /* ======================= "Present with Slidewright" (a deck's own button sends itself here) ======================= */
 function parseSource(html){ const m=html.slice(0,200000).match(/<meta[^>]+name=["']slidewright-source["'][^>]*>/i); if(!m) return null; const c=(m[0].match(/content=["']([^"']*)["']/i)||[])[1]||'';
   const g=c.match(/^github:([\w.-]+)\/([\w.-]+)@([^:]+):(.+)$/); return g?{owner:g[1],repo:g[2],branch:g[3],path:g[4]}:null; }
@@ -54,17 +54,34 @@ async function receiveDeck(d,origin){
   const src=parseSource(String(d.html)); if(src){ S.gh=Object.assign(src,{sha:d.exact?await gitBlobSha(String(d.html)):null,fromDeck:true}); updateFileName(); }
   else if(d.exact&&/^https:\/\//i.test(String(d.url||''))){ const sha=await gitBlobSha(String(d.html)); if(sha){ S.web={url:String(d.url),sha}; if(ghTok()) resolveWebDeck(true); } }
   const vis=S.slides.map((s,i)=>i).filter(i=>S.slides[i].getAttribute('data-visibility')!=='hidden'); const at=vis[Math.max(0,Math.min(vis.length-1,+(d.slide||0)))]; if(at>0) go(at);
-  const from=/^https?:/.test(origin)?origin.replace(/^https?:\/\//,''):'a file on this computer';
+  const from=/^https?:/.test(origin)?origin.replace(/^https?:\/\//,''):origin==='link'?(d.url?normURL(d.url):'a preview (the deck came in the link)'):'a file on this computer';
   const v=await modal('Present '+(S.doc&&S.doc.title||name),el('div',{class:'stack'},el('p',{text:'Presenter view shows your notes, the next slide and a timer on this screen, and opens the slides in a second window for the projector. Drag that window to the projector and press F there for full screen.'}),
     el('p',{class:'hint',text:`Sent from ${from}. Starts at slide ${(vis.indexOf(S.cur)+1)||1}.${src?` You can edit it here too; saving goes back to ${src.owner}/${src.repo} if you can edit that repository.`:S.web?' You can edit it here too. If it’s in a GitHub repository you can edit, Save finds it and commits there.':' You can edit it here too and save your own copy.'}`})),
     [['Just edit','edit'],['Full screen here','full'],['Presenter view','pv','primary']]);
   if(v==='pv') presenterView(); else if(v==='full') present();
 }
-if(location.hash==='#present'&&window.opener){
-  let got=false; const ready=()=>{ if(got) return; try{ window.opener.postMessage({type:'slidewright-ready'},'*'); }catch(_){} };
-  window.addEventListener('message',e=>{ const d=e.data; if(got||e.source!==window.opener||!d||d.type!=='slidewright-deck'||typeof d.html!=='string') return; got=true;
-    history.replaceState(null,'',location.pathname+location.search); receiveDeck(d,e.origin||'null'); });
-  ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
+/* The deck arrives by message from the window that opened Slidewright, or, when that page cuts the tie between the two
+   windows (Claude's file preview and other pages with Cross-Origin-Opener-Policy), inside the link: #present&s=<slide>&z=<gzip, base64url>. */
+async function unpackDeck(z){
+  const bin=atob(z.replace(/-/g,'+').replace(/_/g,'/')); const b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i);
+  const txt=await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); const d=JSON.parse(txt);
+  if(!d||typeof d.html!=='string') throw new Error('no deck in the link'); return d; }
+if(/^#present\b/.test(location.hash)){
+  const q=new URLSearchParams(location.hash.slice('#present'.length).replace(/^&/,'')); const z=q.get('z'), at=+q.get('s')||0;
+  history.replaceState(null,'',location.pathname+location.search+(z?'':'#present'));   // never keep a deck-sized address
+  let got=false; const take=(d,origin)=>{ if(got) return; got=true; history.replaceState(null,'',location.pathname+location.search); receiveDeck(d,origin); };
+  const fromLink=()=>unpackDeck(z).then(d=>take(Object.assign(d,{slide:at}),'link')).catch(e=>{ if(!got) toast('The deck in this link couldn’t be read ('+e.message+'). Open the deck file instead.','warn'); });
+  if(window.opener){
+    const ready=()=>{ if(got) return; try{ window.opener.postMessage({type:'slidewright-ready'},'*'); }catch(_){} };
+    window.addEventListener('message',e=>{ const d=e.data; if(got||e.source!==window.opener||!d||d.type!=='slidewright-deck'||typeof d.html!=='string') return; take(d,e.origin||'null'); });
+    ready(); const iv=setInterval(()=>{ if(got){clearInterval(iv); return;} ready(); },400); setTimeout(()=>clearInterval(iv),20000);
+    if(z) setTimeout(()=>{ if(!got) fromLink(); },1500);
+  } else if(z) fromLink();
+  else setTimeout(()=>{ if(got) return;
+    modal('Your slides didn’t arrive',el('div',{class:'stack'},
+      el('p',{text:'The page with your deck opened Slidewright but couldn’t pass the deck to it. Some pages, such as file previews in Claude, block that, and this deck was too big (or too old) to send in the link instead.'}),
+      el('p',{class:'hint',text:'Download the deck from that page and open it here, or drop the file on this window. Decks exported with the current converter carry themselves in the link when they’re small enough.'})),
+      [['Close',null],['Open the deck…','open','primary']]).then(v=>{ if(v==='open') $('#fileDeck').click(); }); },2500);
 }
 
-window.__deckEditor={importPptx,newFromTemplate,collectLayouts,layoutSection,stdLayouts,setSlides,buildCode,makeTable,slideTitle,cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
+window.__deckEditor={importPptx,newFromTemplate,collectLayouts,layoutSection,stdLayouts,setSlides,buildCode,makeTable,slideTitle,cropImage,compressImages,imgOriginal,ytId,buildEmbed,syncMediaPane,insertTable,tableOp,findOnGitHub,receiveDeck,unpackDeck,parseSource,gitBlobSha,gdrive:{openFromDrive,saveToDrive,driveHistory,signOutGoogle,state:()=>S.gdrive},PV,startPreview,stopPreview,pvStep,runAudit,editMath,pickLayout,layoutSection,openSorter,compareDecks,exportPDF,exportHandout,slideCanvas,detectStyles,moveClick,refreshStepSnap,makeMath,loadKatex,S,loadHTML,serialize,undo,redo,commit,go,setSel,topItems,altTargetsCurrent,updateAltStatus,insertText,startEdit,endEdit,scaleContent,setLayer};
