@@ -39,6 +39,7 @@ The converter that writes these decks lives in [`board-to-reveal/`](../board-to-
 | CSS `@keyframes` named `sN-…` in the deck's `<style>`, inline `animation:` on items | Animations that play on their click |
 | `data-board-slide="Name.dc.html"` on each `<section>`, `<meta name="slidewright-board">` and `<meta name="slidewright-board-export">` | Which board, and which board slide, each slide came from; `board-to-reveal/diff.js` uses them to bring Slidewright edits back to the board |
 | `data-live="N"` on a `<section>`, `data-lv='[[attribute, template],…]'` on items, and a `<script>` that sets `window.__LIVE` | Time-driven animation: the slide's own component runs while the slide is shown and rewrites those attributes; the attribute values saved in the file are the resting state |
+| A `data-lv` entry whose name starts with `on` (e.g. `["onChange","{{setSpeed}}"]`) on an `<input>` or other control in a `data-live` section | A control (a speed slider) wired to the slide's running component; it is not an attribute, and it must survive a save unchanged |
 
 ## Decks converted from PowerPoint
 
