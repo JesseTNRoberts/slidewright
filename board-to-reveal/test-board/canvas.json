@@ -82,6 +82,14 @@
       "h": 720,
       "title": "Builds you can click through on the board (click Next)",
       "is_interactive": true
+    },
+    "LiveControl.dc.html": {
+      "x": 10880,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Speed slider on a time-driven slide",
+      "is_interactive": true
     }
   },
   "order": [
@@ -91,6 +99,7 @@
     "Keyframes.dc.html",
     "LiveLoop.dc.html",
     "LiveSteps.dc.html",
+    "LiveControl.dc.html",
     "PreviewBuilds.dc.html",
     "Question.dc.html",
     "Hidden.dc.html"

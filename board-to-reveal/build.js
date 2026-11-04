@@ -195,6 +195,7 @@ function bindLive(html, exprs, vals, file) {
     const binds = [];
     attrs = attrs.replace(/\s([\w:.-]+)="([^"]*\u0001[^"]*)"/g, (a, name, val) => {
       if (name === 'data-lvtext') { binds.push(['#text', tpl(val.replace(/&quot;/g, '"'))]); return ''; }
+      if (/^on[A-Z]/.test(name)) { binds.push([name, tpl(val)]); return ''; }   // a control's handler: wired in the browser, not an attribute
       binds.push([name, tpl(val)]); return ' ' + name + '="' + fill(val) + '"';
     });
     const self = /\/\s*$/.test(attrs);
@@ -461,7 +462,7 @@ LiveBase.prototype.setState=function(o){ Object.assign(this.state, typeof o==='f
 function liveEval(t, v){ var k=Object.keys(v); return t.replace(/\\{\\{([\\s\\S]*?)\\}\\}/g, function(m,e){ var r; try{ r=Function.apply(null, k.concat('return ('+e+');')).apply(null, k.map(function(x){ return v[x]; })); }catch(err){ r=''; } return (typeof r==='function'||r===undefined||r===null)?'':String(r); }); }
 function liveTop(sec){ var ls=[].slice.call(sec.querySelectorAll('.step-layer')); if(!ls.length) return sec; var top=ls[0]; ls.forEach(function(l){ if(!l.classList.contains('fragment')||l.classList.contains('visible')) top=l; }); return top; }
 function liveRender(c){ var v=c.renderVals(), top=liveTop(c.__sec); top.querySelectorAll('[data-lv]').forEach(function(e){
-  JSON.parse(e.getAttribute('data-lv')).forEach(function(b){ var val=liveEval(b[1], v), o=liveOrig.get(e)||{};
+  JSON.parse(e.getAttribute('data-lv')).forEach(function(b){ if(/^on[A-Z]/.test(b[0])) return; var val=liveEval(b[1], v), o=liveOrig.get(e)||{};
     if(b[0]==='#text'){ if(!('#text' in o)) o['#text']=e.textContent; if(e.textContent!==val) e.textContent=val; }
     else { if(!(b[0] in o)) o[b[0]]=e.getAttribute(b[0]); if(e.getAttribute(b[0])!==val) e.setAttribute(b[0], val); }
     liveOrig.set(e,o); }); }); }
@@ -469,7 +470,15 @@ function liveRestore(sec){ sec.querySelectorAll('[data-lv]').forEach(function(e)
   Object.keys(o).forEach(function(n){ if(n==='#text') e.textContent=o[n]; else if(o[n]===null) e.removeAttribute(n); else e.setAttribute(n,o[n]); }); liveOrig.delete(e); }); }
 function liveMount(sec){ if(!sec||!sec.dataset.live||liveOn[sec.dataset.live]||!LIVE[sec.dataset.live]) return;
   var C=LIVE[sec.dataset.live](LiveBase), c=new C(); c.state=sec.dataset.liveSteps?{step:curStep(sec)}:{}; c.__sec=sec; liveOn[sec.dataset.live]=c;
-  liveRender(c); if(c.componentDidMount) c.componentDidMount(); }
+  liveWire(sec); liveRender(c); if(c.componentDidMount) c.componentDidMount(); }
+/* controls on a time-animated slide (a speed slider): their onChange/onInput/onClick handlers come from the
+   running component's renderVals(); keys pressed on a control stay with it instead of changing slides */
+function liveWire(sec){ sec.querySelectorAll('[data-lv]').forEach(function(e){ if(e.__lvWired) return;
+  JSON.parse(e.getAttribute('data-lv')).forEach(function(b){ if(!/^on[A-Z]/.test(b[0])) return; e.__lvWired=true;
+    var ex=b[1].replace(/^\\{\\{\\s*|\\s*\\}\\}$/g,''), ev=b[0].slice(2).toLowerCase();
+    (ev==='change'?['input','change']:[ev]).forEach(function(n){ e.addEventListener(n, function(x){ var c=liveOn[sec.dataset.live]; if(!c) return;
+      var f=c.renderVals()[ex]; if(typeof f==='function') f(x); }); }); });
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName)) e.addEventListener('keydown', function(x){ x.stopPropagation(); }); }); }
 function liveUnmount(sec){ if(!sec||!sec.dataset.live) return; var c=liveOn[sec.dataset.live]; if(!c) return;
   if(c.componentWillUnmount) c.componentWillUnmount(); c.__sec=null; delete liveOn[sec.dataset.live]; liveRestore(sec); }
 function liveStep(sec, forward){ var c=sec&&sec.dataset.live&&liveOn[sec.dataset.live]; if(!c||!sec.dataset.liveSteps) return; var k=curStep(sec);

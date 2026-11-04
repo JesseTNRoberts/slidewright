@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Time-driven animation with a speed slider</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Time-driven animation with a speed slider</div>
+<label for="lc-speed" style="position: absolute; left: 64px; top: 160px; font-size: 20px">Speed</label>
+<input id="lc-speed" type="range" min="0.25" max="4" step="0.25" value="{{speed}}" onChange="{{setSpeed}}" style="position: absolute; left: 150px; top: 160px; width: 200px">
+<div id="lc-label" style="position: absolute; left: 370px; top: 158px; font-size: 20px">{{speedLabel}}</div>
+<svg width="1152" height="200" viewBox="0 0 1152 200" aria-hidden="true" style="position: absolute; left: 64px; top: 260px"><g transform="{{moveT}}"><rect x="0" y="0" width="60" height="60" rx="8" fill="#DCE5FA" stroke="#2557D6"/></g></svg>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+componentDidMount() {
+var self = this; var reduce = false;
+try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+if (reduce) { this.setState({ t: 4 }); return; }
+var last = Date.now();
+this.timer = setInterval(function () { var now = Date.now(); var t = ((self.state.t || 0) + (now - last) / 1000 * (self.state.speed || 1)) % 4; last = now; self.setState({ t: t }); }, 40);
+}
+componentWillUnmount() { if (this.timer) { clearInterval(this.timer); } }
+renderVals() {
+var self = this; var t = this.state.t; if (t === undefined || t === null) { t = 4; } var sp = this.state.speed || 1;
+return { moveT: 'translate(' + (t * 250).toFixed(1) + ' 60)', speed: sp, speedLabel: sp + '×', setSpeed: function (e) { self.setState({ speed: parseFloat(e.target.value) || 1 }); } };
+}
+}
+</script>
+</body>
+</html>

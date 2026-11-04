@@ -100,6 +100,17 @@ test('edit, save, and the saved deck still presents with every converter feature
   const landed = await deck.evaluate(() => { const L = [...Reveal.getCurrentSlide().querySelectorAll('.step-layer')].filter(l => !l.getAttribute('aria-hidden')); return L[L.length - 1].querySelector('g[data-lv]').getAttribute('transform'); });
   assert(flying !== landed && landed === 'translate(300.0 100)', `click-step flight wrong: ${flying} -> ${landed}`);
 
+  // a control on a time-driven slide: dragging the slider calls the component's handler, and its keys stay off the deck
+  await deck.evaluate(i => Reveal.slide(i), slideIndex('LiveControl.dc.html'));
+  await deck.evaluate(() => { const r = Reveal.getCurrentSlide().querySelector('input[type=range]'); r.value = '3'; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await wait(100);
+  const speedText = await deck.evaluate(() => [...Reveal.getCurrentSlide().querySelectorAll('[data-lv]')].map(e => e.textContent.trim()).find(t => t.endsWith('×')));
+  assert(speedText === '3×', 'speed slider does not reach the component after saving: ' + speedText);
+  const before = await deck.evaluate(() => Reveal.getIndices().h);
+  await deck.evaluate(() => { const r = Reveal.getCurrentSlide().querySelector('input[type=range]'); r.focus(); r.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true })); });
+  await wait(200);
+  assert(await deck.evaluate(() => Reveal.getIndices().h) === before, 'arrow key on the slider changed the slide');
+
   // build dot, CSS animation and KaTeX
   await deck.evaluate(i => Reveal.slide(i, 0, -1), slideIndex('Builds.dc.html'));
   await deck.evaluate(() => Reveal.next()); await wait(700);
