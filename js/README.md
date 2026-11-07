@@ -18,5 +18,7 @@ One rule follows from that: code that runs **while a file loads** (not inside a 
 | `10-media.js` | Tables, video and audio, pictures, click effects and transitions |
 | `11-import-code.js` | Templates, PowerPoint import, code blocks |
 | `12-boot.js` | Start-up, Present with Slidewright, the test hook `window.__deckEditor` |
+| `15-lecture.js` | Recording a lecture in presenter view (sound plus a timed log of slides, clicks, drawings and laser), stored in IndexedDB; the Recordings list |
+| `16-lecture-editor.js` | The lecture editor (cut stretches, crop or remove drawings) and drawing the edited lecture into a video |
 
 `tools/build_offline.py` inlines all of this (and the libraries) into one file for the offline copy.

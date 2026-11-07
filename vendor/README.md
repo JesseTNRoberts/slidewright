@@ -1,6 +1,6 @@
 # Bundled libraries
 
-Slidewright loads these from this folder, so equations, PDF export and new decks keep working even if a CDN is down, blocked on a campus network, or gone. Each is the unmodified file from its npm package, under its own MIT license (included).
+Slidewright loads these from this folder, so equations, PDF export and new decks keep working even if a CDN is down, blocked on a campus network, or gone. Each is the unmodified file from its npm package, under its own license (included): MIT, except Mediabunny, which is MPL-2.0.
 
 | Library | Version | Used for | From |
 |---|---|---|---|
@@ -8,6 +8,7 @@ Slidewright loads these from this folder, so equations, PDF export and new decks
 | jsPDF | 2.5.1 | PDF and handout export | `jspdf/dist/jspdf.umd.min.js` |
 | reveal.js | 5.1.0 | Built into decks made with “New blank deck” | `reveal.js/dist/reveal.js`, `reveal.css` |
 | JSZip | 3.10.1 | Reading .pptx files (PowerPoint import) | `jszip/dist/jszip.min.js` |
+| Mediabunny | 1.65.2 | Making the lecture video (H.264/VP9 encoding and MP4/WebM files), loaded only when you export one | `mediabunny/dist/bundles/mediabunny.min.mjs` |
 | @xmldom/xmldom | 0.8.10 | XML parsing for the command-line PowerPoint converter (Node has no DOMParser) | `@xmldom/xmldom/lib/*.js` |
 
 If a file here can't be loaded, Slidewright falls back to the same version on cdnjs (KaTeX, jsPDF) or jsDelivr (reveal.js). To upgrade one, replace its folder and update the version in `index.html`.

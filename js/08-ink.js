@@ -11,7 +11,7 @@ function inkScript(cfg){ return '<script>('+function(cfg){
     var g=document.createElementNS(NS,'g'), hl=document.createElementNS(NS,'g'); hl.setAttribute('style','mix-blend-mode:multiply'); svg.appendChild(hl); svg.appendChild(g);
     var dot=document.createElementNS(NS,'circle'); dot.setAttribute('r','9'); dot.setAttribute('fill','#FF2D2D'); dot.setAttribute('style','filter:drop-shadow(0 0 6px rgba(255,45,45,.9));opacity:0;transition:opacity .25s'); svg.appendChild(dot);
     slides.appendChild(svg);
-    var store={}, tool=null, color=cfg.colors[0], cur=null, subs=[], laserT=null;
+    var store={}, tool=null, color=cfg.colors[0], cur=null, subs=[], lsubs=[], laserT=null;
     var key=function(){var i=R.getIndices(); return i.h+'.'+(i.v||0);};
     var list=function(){var k=key(); return store[k]||(store[k]=[]);};
     var dOf=function(pts){ if(pts.length===1) return 'M'+pts[0][0]+' '+pts[0][1]+'l0.01 0'; var d='M'+pts[0][0]+' '+pts[0][1]; for(var i=1;i<pts.length;i++){ var p=pts[i-1], q=pts[i]; d+=' Q'+p[0]+' '+p[1]+' '+((p[0]+q[0])/2).toFixed(1)+' '+((p[1]+q[1])/2).toFixed(1);} return d; };
@@ -25,9 +25,9 @@ function inkScript(cfg){ return '<script>('+function(cfg){
       begin:function(x,y){ if(tool!=='pen'&&tool!=='hl') return; cur={tool:tool,color:tool==='hl'?cfg.hl:color,pts:[[+x.toFixed(1),+y.toFixed(1)]]}; cur.el=pathEl(cur); (tool==='hl'?hl:g).appendChild(cur.el); },
       move:function(x,y){ if(!cur) return; var l=cur.pts[cur.pts.length-1]; if(Math.hypot(l[0]-x,l[1]-y)<1.5) return; cur.pts.push([+x.toFixed(1),+y.toFixed(1)]); cur.el.setAttribute('d',dOf(cur.pts)); },
       end:function(){ if(!cur) return; list().push({tool:cur.tool,color:cur.color,pts:cur.pts}); cur=null; notify(); },
-      laser:function(x,y){ dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.style.opacity=1; clearTimeout(laserT); laserT=setTimeout(function(){dot.style.opacity=0;},1500); },
+      laser:function(x,y){ lsubs.forEach(function(f){ try{f(x,y);}catch(e){} }); dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.style.opacity=1; clearTimeout(laserT); laserT=setTimeout(function(){dot.style.opacity=0;},1500); },
       clear:function(){ store[key()]=[]; redraw(); }, undo:function(){ list().pop(); redraw(); },
-      markup:markup, onchange:function(f){subs.push(f);}, size:[W,H],
+      markup:markup, onchange:function(f){subs.push(f);}, onlaser:function(f){lsubs.push(f);}, size:[W,H],
       dump:function(){ return JSON.stringify(store); }, load:function(j){ try{ store=JSON.parse(j)||{}; }catch(e){} redraw(); }
     };
     window.SW_ink=api;
@@ -75,7 +75,7 @@ function bridgeScript(){ return '<script>('+function(){
         var r=box.getBoundingClientRect(); return r.width>2?{src:f.getAttribute('data-sw-src')||'',title:f.title||'Video',x:r.left,y:r.top,w:r.width,h:r.height}:null; }).filter(Boolean); post({type:'embeds',items:items}); }
     ['slidechanged','fragmentshown','fragmenthidden','paused','resumed'].forEach(function(ev){ R.on(ev,function(){ state(ev); setTimeout(embeds,450); }); });
     R.on('resize',function(){ setTimeout(embeds,60); });
-    var hook=function(){ var I=ink(); if(I){ I.onchange(function(){ state('ink'); }); state('ink'); } else setTimeout(hook,150); }; hook();
+    var lastL=0; var hook=function(){ var I=ink(); if(I){ I.onchange(function(){ state('ink'); }); if(I.onlaser) I.onlaser(function(x,y){ var n=Date.now(); if(n-lastL<60) return; lastL=n; post({type:'laser',x:+x,y:+y}); }); state('ink'); } else setTimeout(hook,150); }; hook();
     window.addEventListener('message',function(e){ var ok=e.source===parent; try{ ok=ok||(!!parent.opener&&e.source===parent.opener); }catch(x){} if(!ok) return; var d=e.data||{}, a=d.args||[], I=ink();
       switch(d.swCmd){ case 'next': R.next(); break; case 'prev': R.prev(); break; case 'slide': R.slide(a[0],a[1],a[2]); break; case 'togglePause': R.togglePause(); break;
         case 'setTool': if(I){ I.setTool(a[0]); state('ink'); } break; case 'setColor': if(I) I.setColor(a[0]); break; case 'begin': if(I) I.begin(a[0],a[1]); break; case 'move': if(I) I.move(a[0],a[1]); break; case 'end': if(I) I.end(); break;
@@ -86,12 +86,13 @@ function bridgeScript(){ return '<script>('+function(){
 }.toString()+')();<\/script>'; }
 /* Talks to a deck in a sandboxed frame. host: the window whose 'message' events the frame's messages arrive on (the frame's parent). */
 function deckBridge(frame,host){
-  const st={ready:false,ix:{h:0,v:0,f:-1},paused:false,ink:false,tool:null,color:null,dump:'{}'}; const subs={state:[],ready:[],key:[],embeds:[]};
+  const st={ready:false,ix:{h:0,v:0,f:-1},paused:false,ink:false,tool:null,color:null,dump:'{}'}; const subs={state:[],ready:[],key:[],embeds:[],laser:[]};
   const num=v=>typeof v==='number'&&isFinite(v)?v:0;
   const onMsg=e=>{ if(!frame.contentWindow||e.source!==frame.contentWindow) return; const d=e.data; if(!d||d.sw!==1||typeof d.type!=='string') return;
     if(d.type==='state'&&d.state&&typeof d.state==='object'){ const x=d.state, ix=x.ix||{}; st.ix={h:num(ix.h),v:num(ix.v),f:ix.f==null?-1:num(ix.f)}; st.paused=!!x.paused; st.ink=!!x.ink;
       st.tool=['pen','hl','laser'].includes(x.tool)?x.tool:null; st.color=typeof x.color==='string'?x.color:null; st.dump=typeof x.dump==='string'?x.dump:'{}';
       const first=!st.ready; st.ready=true; if(first) subs.ready.forEach(f=>f()); subs.state.forEach(f=>f(String(d.why||''))); }
+    else if(d.type==='laser'){ const x=+d.x, y=+d.y; if(isFinite(x)&&isFinite(y)) subs.laser.forEach(f=>f(x,y)); }
     else if(d.type==='key') subs.key.forEach(f=>f(String(d.key||''))); else if(d.type==='embeds'&&Array.isArray(d.items)) subs.embeds.forEach(f=>f(d.items)); };
   host.addEventListener('message',onMsg);
   const send=(cmd,args)=>{ try{ frame.contentWindow.postMessage({swCmd:cmd,args:args||[]},'*'); }catch(_){} };

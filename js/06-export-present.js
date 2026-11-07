@@ -96,7 +96,8 @@ async function presenterView(){
   const tb=(label,title,t,fn)=>{const b=el('button',{class:'btn',text:label,title,onclick:fn||(()=>setTool(t))}); if(t) toolBtns[t]=b; return b;};
   const tools=el('span',{class:'pv-tools'},tb('✎ Pen','Draw on the slide (D)','pen'),tb('▮ Marker','Highlight (M)','hl'),tb('● Laser','Laser pointer (R)','laser'),
     tb('↶','Undo last stroke',null,()=>{const I=ink(); I&&I.undo();}),tb('⌫','Clear drawings on this slide (E)',null,()=>{const I=ink(); I&&I.clear();}),tb('■ Blank','Black out the screen (B)',null,()=>{const r=R(); r&&r.togglePause();}));
-  const close=()=>{clearInterval(iv); if(B) B.close(); if(document.fullscreenElement===ov) document.exitFullscreen().catch(()=>{}); ov.remove(); document.removeEventListener('keydown',kd,true); if(sd) sd.removeEventListener&&sd.removeEventListener('screenschange',onScreens);};
+  const rec=lectureRecorder(()=>B&&B.st.ready?B.st:null);
+  const close=()=>{if(rec.recording) rec.stop(); clearInterval(iv); if(B) B.close(); if(document.fullscreenElement===ov) document.exitFullscreen().catch(()=>{}); ov.remove(); document.removeEventListener('keydown',kd,true); if(sd) sd.removeEventListener&&sd.removeEventListener('screenschange',onScreens);};
   const onScreens=()=>{ place=pickScreens(sd); };
   if(sd&&sd.addEventListener) sd.addEventListener('screenschange',onScreens);
   const snapshot=()=>{ const r=R(), I=ink(); let ix=null; try{ ix=r&&r.getIndices(); }catch(_){} return {ix,ink:I?I.dump():null}; };
@@ -111,7 +112,7 @@ async function presenterView(){
       const d=await screenDetails(true); if(!d){ toast('Slidewright wasn’t allowed to see your displays. You can allow “Window management” in the site settings.','warn'); return; } sd=d; place=pickScreens(d); if(d.addEventListener) d.addEventListener('screenschange',onScreens); toast(d.screens.length>1?'Found your displays. Choose Display again to swap or move the windows.':'Only one display is connected.'); }]);
     else if(sd.screens.length<2) items.push(['Only one display is connected',()=>{}]);
     menu(anchor,items); };
-  ov.append(el('div',{class:'pv-top'},el('b',{text:'Presenter view'}),pos,tools,el('span',{class:'spacer'}),slideTimer,timer,pauseB,el('button',{class:'btn',text:'Reset',onclick:()=>{t0=Date.now(); paused=0; pauseAt=null; pauseB.textContent='Pause';}}),clock,
+  ov.append(el('div',{class:'pv-top'},el('b',{text:'Presenter view'}),pos,tools,rec.button,el('span',{class:'spacer'}),slideTimer,timer,pauseB,el('button',{class:'btn',text:'Reset',onclick:()=>{t0=Date.now(); paused=0; pauseAt=null; pauseB.textContent='Pause';}}),clock,
       el('button',{class:'btn',text:'◀',title:'Previous',onclick:()=>{const r=R(); r&&r.prev();}}),el('button',{class:'btn primary',text:'Next ▶',title:'Next (→ or Space)',onclick:()=>{const r=R(); r&&r.next();}}),
       el('button',{class:'btn',text:'🖥 Display',title:'Swap or duplicate displays','aria-haspopup':'menu',onclick:e=>displayMenu(e.currentTarget)}),
       el('button',{class:'btn',text:'End',onclick:()=>{close(); try{aw.close();}catch(_){}}})),
@@ -129,6 +130,7 @@ async function presenterView(){
   document.addEventListener('keydown',kd,true);
   function attach(state){ const mine=B;
     mine.on('ready',()=>{ if(B!==mine) return; const r=mine.R; ['slidechanged','fragmentshown','fragmenthidden'].forEach(ev=>r.on(ev,render));
+      mine.on('state',()=>{ if(B===mine) rec.state(mine.st); }); mine.on('laser',(x,y)=>{ if(B===mine) rec.laser(x,y); });
       if(state&&state.ix) r.slide(state.ix.h,state.ix.v,state.ix.f); else r.slide(S.cur); render();
       const I=mine.I; if(state&&state.ink) I.load(state.ink); I.onchange(()=>{drawInk(); syncTools();}); syncTools(); drawInk(); });
     setTimeout(()=>{ if(B===mine&&!mine.st.ready) cur.replaceChildren(el('div',{class:'pv-end',text:'The deck’s player didn’t start in the audience window.'})); },15000); }
