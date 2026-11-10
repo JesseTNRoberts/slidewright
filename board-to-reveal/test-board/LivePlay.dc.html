@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play button animation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; position: relative; box-sizing: border-box; background: #FBFBFA; color: #16181D; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden">
+<div style="position: absolute; left: 64px; top: 48px; width: 1064px; font-size: 48px; line-height: 56px; font-weight: 600">Animation that plays once on Play</div>
+<svg width="1152" height="200" viewBox="0 0 1152 200" aria-hidden="true" style="position: absolute; left: 64px; top: 260px"><g transform="{{moveT}}"><rect x="0" y="0" width="60" height="60" rx="8" fill="#DCE5FA" stroke="#2557D6"/></g></svg>
+<div id="lp-phase" style="position: absolute; left: 64px; top: 548px; width: 1000px; font-size: 22px; line-height: 30px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #5A5F6B">NOW&nbsp;&nbsp;</span>{{phase}}</div>
+<button type="button" onClick="{{reset}}" style="position: absolute; top: 682px; height: 28px; padding: 0 12px; left: 1076px">Reset</button>
+<button type="button" onClick="{{play}}" style="position: absolute; top: 682px; height: 28px; padding: 0 12px; left: 1148px; width: 68px">Play</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+componentWillUnmount() { if (this._timer) { clearInterval(this._timer); } }
+renderVals() {
+var self = this; var t = this.state.t;
+var stop = function () { if (self._timer) { clearInterval(self._timer); self._timer = null; } };
+var play = function () {
+  stop();
+  var still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) { self.setState({ t: null }); return; }
+  var start = Date.now(); self.setState({ t: 0 });
+  self._timer = setInterval(function () { var e = Date.now() - start; if (e >= 1500) { stop(); self.setState({ t: null }); } else { self.setState({ t: e }); } }, 40);
+};
+var reset = function () { stop(); self.setState({ t: null }); };
+if (t === undefined || t === null) { return { play: play, reset: reset, moveT: 'translate(600.0 60)', phase: 'finished' }; }
+return { play: play, reset: reset, moveT: 'translate(' + (t / 2.5).toFixed(1) + ' 60)', phase: t < 750 ? 'first half' : 'second half' };
+}
+}
+</script>
+</body>
+</html>
