@@ -90,6 +90,14 @@
       "h": 720,
       "title": "Speed slider on a time-driven slide",
       "is_interactive": true
+    },
+    "LivePlay.dc.html": {
+      "x": 12240,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Animation on a Play button",
+      "is_interactive": true
     }
   },
   "order": [
@@ -100,6 +108,7 @@
     "LiveLoop.dc.html",
     "LiveSteps.dc.html",
     "LiveControl.dc.html",
+    "LivePlay.dc.html",
     "PreviewBuilds.dc.html",
     "Question.dc.html",
     "Hidden.dc.html"

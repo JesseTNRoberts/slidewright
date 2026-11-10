@@ -146,7 +146,9 @@ function readSlide(file) {
   const steps = props.step && Number.isFinite(props.step.max) ? props.step.max : 0;
   if (/<dc-import\b/.test(body)) unsupported(file, '<dc-import> child component');
   // a slide that animates itself over time (componentDidMount starting a timer that calls setState)
-  const live = !!sm && /componentDidMount\s*\(/.test(sm[2]) && /\b(setInterval|setTimeout|requestAnimationFrame)\s*\(/.test(sm[2]);
+  // ...or one whose Play button starts that timer (the animation plays once, on request)
+  const live = !!sm && /\b(setInterval|setTimeout|requestAnimationFrame)\s*\(/.test(sm[2]) &&
+    (/componentDidMount\s*\(/.test(sm[2]) || /this\.state\.(?!step\b)\w+/.test(sm[2]));
   const otherState = sm && /this\.state\.(?!step\b)\w+/.exec(sm[2]);
   if (otherState && !live) unsupported(file, 'interactive state other than step (' + otherState[0] + ')');
   const anim = slideAnimations(src);
@@ -188,6 +190,9 @@ const holeVal = (e, v) => { const x = evalExpr(e, v); return typeof x === 'funct
 function bindLive(html, exprs, vals, file) {
   const fill = t => t.replace(/\u0001(\d+)\u0002/g, (m, i) => esc(holeVal(exprs[+i], vals)));
   const tpl = t => decode(t.replace(/\u0001(\d+)\u0002/g, (m, i) => '{{' + exprs[+i] + '}}'));
+  // a value inside mixed content (<span>NOW</span>{{phase}}): wrap the run of text in its own <span>
+  html = html.replace(/(<\/[\w:.-]+>)([^<]*\u0001[^<]*)(?=<)/g, (m, close, text) => close + '<span>' + text + '</span>')
+    .replace(/>([^<]*\u0001[^<]*)(?=<[a-zA-Z])/g, (m, text) => '><span>' + text + '</span>');
   // text that is an element's whole content
   html = html.replace(/<([a-zA-Z][\w:.-]*)\b([^>]*)>([^<]*\u0001[^<]*)<\/\1>/g, (m, tag, attrs, text) =>
     '<' + tag + attrs + ' data-lvtext="' + text.replace(/"/g, '&quot;') + '">' + fill(text) + '</' + tag + '>');
@@ -205,10 +210,19 @@ function bindLive(html, exprs, vals, file) {
   if (/\u0001/.test(html)) unsupported(file, 'a time-animated value in a place that cannot be bound (only attributes and an element\'s whole text can change)');
   return html;
 }
-function cleanRender(html, file) {
+function cleanRender(html, file, ex, steps) {
+  // a time-animated slide keeps its own Play/Replay/Reset buttons (wired to the running component);
+  // Next, and on click-through slides a Reset that rewinds the step, are reveal's job and go
+  const keep = [];
+  if (ex) html = html.replace(/<button\b[\s\S]*?<\/button>/g, b => {
+    const m = /\sonClick="\u0001(\d+)\u0002"/.exec(b), h = m ? ex[+m[1]].trim() : '';
+    if (!h || h === 'next' || (steps && h === 'reset')) return '';
+    keep.push(b.replace(/(<button\b[^>]*?)\s*style="/, '$1 class="live-button" style="')); return '\u0003' + (keep.length - 1) + '\u0004';
+  });
   html = html.replace(/<button\b[\s\S]*?<\/button>/g, '');
   html = html.replace(/<div style="[^"]*display: flex[^"]*">\s*<\/div>/g, '');
   html = html.replace(/\s(onClick|disabled|hint-placeholder-[a-z]+)="[^"]*"/g, '');
+  html = html.replace(/\u0003(\d+)\u0004/g, (m, i) => keep[+i]);
   return inlineAssets(html, file);
 }
 // every state the slide passes through while playing must have the same markup as its bound template
@@ -220,12 +234,13 @@ function checkLive(slide) {
     return tplFor[k];
   };
   const starts = slide.steps ? [...Array(slide.steps + 1).keys()] : [null];
-  starts.forEach(k => {
+  starts.forEach(k => [false, true].forEach(pressPlay => {
     const h = harness(slide, false);
     h.c.state = k === null ? {} : { step: k };
     h.mount();
     let v = h.c.renderVals();
-    if (k !== null && k < slide.steps && typeof v.next === 'function') v.next();
+    if (pressPlay) { if (typeof v.play !== 'function') return; v.play(); }
+    else if (k !== null && k < slide.steps && typeof v.next === 'function') v.next();
     for (let i = 0; i <= 100; i++) {
       v = h.c.renderVals();
       const T = template(slide.steps ? h.c.state.step : null);
@@ -234,12 +249,12 @@ function checkLive(slide) {
       if (got !== want) unsupported(slide.file, 'a time animation that changes the slide\'s structure (<sc-for>/<sc-if>) while it plays');
       h.tick(250);
     }
-  });
+  }));
 }
 function renderSlide(slide, step) {
   if (slide.live) {
     const vals = staticVals(slide, slide.steps ? step : null), ex = [];
-    return bindLive(cleanRender(expand(slide.body, vals, ex), slide.file), ex, vals, slide.file);
+    return bindLive(cleanRender(expand(slide.body, vals, ex), slide.file, ex, slide.steps), ex, vals, slide.file);
   }
   const ctx = { result: null };
   vm.createContext(ctx);

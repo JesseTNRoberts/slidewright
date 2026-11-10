@@ -31,7 +31,7 @@ html,body,.reveal-viewport{width:1280px!important;height:auto!important;overflow
 .reveal .slides>section:last-child{break-after:auto;page-break-after:auto}
 .reveal .slides section .fragment{opacity:1!important;visibility:visible!important;transition:none!important}
 .reveal [data-pos]{transition:none!important}
-.reveal .controls,.reveal .progress,.reveal .backgrounds,.reveal .slide-number,.reveal .speaker-notes,.reveal .aria-status,.pdf-get,.sw-present{display:none!important}
+.reveal .controls,.reveal .progress,.reveal .backgrounds,.reveal .slide-number,.reveal .speaker-notes,.reveal .aria-status,.pdf-get,.sw-present,.live-button{display:none!important}
 }`;
 
 const CSS = `
@@ -220,7 +220,7 @@ function collectCSS(){
     '.reveal .slides>section{display:block!important;position:relative!important;inset:auto!important;transform:none!important;opacity:1!important;visibility:visible!important;width:1280px!important;height:720px!important;overflow:hidden!important}',
     '.reveal .slides section .fragment{opacity:1!important;visibility:visible!important}',
     '.reveal *{transition:none!important;animation:none!important}',
-    '.pdf-get{display:none!important}');
+    '.pdf-get,.live-button{display:none!important}');
   return {faces:faces, rest:rest.join('\n')};
 }
 function facesFor(text){
