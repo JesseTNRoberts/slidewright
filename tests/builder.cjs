@@ -111,16 +111,19 @@ test('edit, save, and the saved deck still presents with every converter feature
   await wait(200);
   assert(await deck.evaluate(() => Reveal.getIndices().h) === before, 'arrow key on the slider changed the slide');
 
-  // an animation on a Play button: Play starts it, it plays once and comes to rest; a value in mixed content updates too
-  await deck.evaluate(i => Reveal.slide(i), slideIndex('LivePlay.dc.html'));
+  // an animation on a Play button: one press of Next plays it (no on-slide buttons), it plays once and comes to rest;
+  // a value in mixed content updates too; going back rewinds it
+  await deck.evaluate(i => Reveal.slide(i, 0, -1), slideIndex('LivePlay.dc.html'));
   const phase = () => deck.evaluate(() => Reveal.getCurrentSlide().querySelector('[id$="lp-phase"]').textContent.replace(/\s+/g, ' ').trim());
   assert(await phase() === 'NOW finished', 'Play slide does not start at rest: ' + await phase());
-  assert(await deck.evaluate(() => Reveal.getCurrentSlide().querySelectorAll('button.live-button').length) === 2, 'Play/Reset buttons missing');
-  await deck.evaluate(() => [...Reveal.getCurrentSlide().querySelectorAll('button.live-button')].find(b => b.textContent.trim() === 'Play').click());
+  assert(await deck.evaluate(() => Reveal.getCurrentSlide().querySelectorAll('button').length) === 0, 'Play/Reset buttons still on the slide');
+  await deck.evaluate(() => Reveal.next());
   await wait(300); const playing = await phase();
-  assert(playing === 'NOW first half', 'Play did not start the animation: ' + playing);
+  assert(playing === 'NOW first half', 'Next did not start the animation: ' + playing);
   await wait(1800);
   assert(await phase() === 'NOW finished', 'animation did not stop at rest: ' + await phase());
+  await deck.evaluate(() => Reveal.prev()); await wait(100);
+  assert(await phase() === 'NOW finished', 'going back did not rewind to rest: ' + await phase());
 
   // build dot, CSS animation and KaTeX
   await deck.evaluate(i => Reveal.slide(i, 0, -1), slideIndex('Builds.dc.html'));
