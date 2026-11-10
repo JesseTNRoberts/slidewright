@@ -153,7 +153,14 @@ function readSlide(file) {
   if (otherState && !live) unsupported(file, 'interactive state other than step (' + otherState[0] + ')');
   const anim = slideAnimations(src);
   if (/\banimation(-name)?:/.test(body) && !anim.keyframes.length) unsupported(file, 'CSS animation with no @keyframes in the slide\'s <helmet><style>');
-  return { file, body, script: sm ? sm[2] : '', steps, anim, live };
+  // a Play button becomes a click of its own: the largest "step >= N" its play handler checks says after which step
+  let playAt = null;
+  if (live && /onClick="\{\{\s*play\s*\}\}"/.test(body)) {
+    const pf = /\bplay\s*[=:]\s*function\s*\([^)]*\)\s*\{([^}]*)\}/.exec(sm[2]) || /\bplay\s*\([^)]*\)\s*\{([^}]*)\}/.exec(sm[2]);
+    const ns = pf ? [...pf[1].matchAll(/step\s*>=\s*(\d+)/g)].map(m => +m[1]) : [];
+    playAt = Math.min(steps, ns.length ? Math.max(...ns) : 0);
+  }
+  return { file, body, script: sm ? sm[2] : '', steps, anim, live, playAt };
 }
 function unsupported(file, what) {
   console.error('\nNot supported yet in ' + file + ': ' + what +
@@ -210,13 +217,13 @@ function bindLive(html, exprs, vals, file) {
   if (/\u0001/.test(html)) unsupported(file, 'a time-animated value in a place that cannot be bound (only attributes and an element\'s whole text can change)');
   return html;
 }
-function cleanRender(html, file, ex, steps) {
+function cleanRender(html, file, ex, steps, playOnNext) {
   // a time-animated slide keeps its own Play/Replay/Reset buttons (wired to the running component);
   // Next, and on click-through slides a Reset that rewinds the step, are reveal's job and go
   const keep = [];
   if (ex) html = html.replace(/<button\b[\s\S]*?<\/button>/g, b => {
     const m = /\sonClick="\u0001(\d+)\u0002"/.exec(b), h = m ? ex[+m[1]].trim() : '';
-    if (!h || h === 'next' || (steps && h === 'reset')) return '';
+    if (!h || h === 'next' || (steps && h === 'reset') || (playOnNext && /^(play|replay|reset)$/.test(h))) return '';
     keep.push(b.replace(/(<button\b[^>]*?)\s*style="/, '$1 class="live-button" style="')); return '\u0003' + (keep.length - 1) + '\u0004';
   });
   html = html.replace(/<button\b[\s\S]*?<\/button>/g, '');
@@ -254,7 +261,7 @@ function checkLive(slide) {
 function renderSlide(slide, step) {
   if (slide.live) {
     const vals = staticVals(slide, slide.steps ? step : null), ex = [];
-    return bindLive(cleanRender(expand(slide.body, vals, ex), slide.file, ex, slide.steps), ex, vals, slide.file);
+    return bindLive(cleanRender(expand(slide.body, vals, ex), slide.file, ex, slide.steps, slide.playAt !== null), ex, vals, slide.file);
   }
   const ctx = { result: null };
   vm.createContext(ctx);
@@ -371,12 +378,17 @@ order.forEach((file, n) => {
     const cls = 'fragment' + (fx ? ' ' + fx : '');
     return /\bclass="/.test(attrs) ? '<' + tag + attrs.replace(/\bclass="/, 'class="' + cls + ' ') + idx + sc + '>' : '<' + tag + attrs + ' class="' + cls + '"' + idx + sc + '>';
   });
+  if (slide.playAt !== null) {
+    const P = slide.playAt;
+    inner = inner.replace(/data-fragment-index="(\d+)"/g, (m, i) => 'data-fragment-index="' + (+i >= P ? +i + 1 : +i) + '"') +
+      '\n<div class="fragment play-trigger" data-fragment-index="' + P + '" aria-hidden="true"></div>';
+  }
   if (/\\\(|\\\[/.test(inner)) usesMath = true;
   // student extras: download button on the title slide, copyright line on every slide
   const isFirst = file === firstVisible;
   const extra = (isFirst && OPT.pdf ? '\n' + extras.BUTTON : '') + (OPT.copyright ? '\n' + extras.copyright(isFirst ? 1 : N + 1, OPT.holder, OPT.year) : '');
   const hid = isHidden(file);
-  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '" data-board-slide="' + esc(file) + '"' + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
+  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '" data-board-slide="' + esc(file) + '"' + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') + (slide.playAt !== null ? ' data-play-at="' + slide.playAt + '"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
 });
 
 // ---------- assets ----------
@@ -428,7 +440,7 @@ ${extras.CSS}
 ${OPT.present ? extras.PRESENT_CSS : ''}
 `;
 const js = `
-function curStep(sec){ var k=0; sec.querySelectorAll('.fragment.visible[data-fragment-index]').forEach(function(f){ k=Math.max(k, +f.dataset.fragmentIndex+1); }); return k; }
+function curStep(sec){ var k=0, P=sec.dataset.playAt; sec.querySelectorAll('.fragment.visible[data-fragment-index]:not(.play-trigger)').forEach(function(f){ var i=+f.dataset.fragmentIndex; if(P!==undefined && i>+P) i--; k=Math.max(k, i+1); }); return k; }
 function syncSteps(){
   document.querySelectorAll('.reveal .slides > section').forEach(function(sec){
     var k=curStep(sec);
@@ -500,8 +512,11 @@ function liveStep(sec, forward){ var c=sec&&sec.dataset.live&&liveOn[sec.dataset
   /* one click forward does what the board's Next button did, so its animation plays; anything else jumps */
   liveRestore(sec); var v=c.renderVals(); if(forward && k===c.state.step+1 && typeof v.next==='function') v.next(); else { c.state={step:k}; liveRender(c); } }
 Reveal.on('slidechanged', function(e){ liveUnmount(e.previousSlide); liveMount(e.currentSlide); });
-Reveal.on('fragmentshown', function(){ liveStep(Reveal.getCurrentSlide(), true); });
-Reveal.on('fragmenthidden', function(){ liveStep(Reveal.getCurrentSlide(), false); });
+/* a Play button became its own click: showing that click plays the animation once; going back rewinds it */
+function livePlay(sec){ var c=sec&&sec.dataset.live&&liveOn[sec.dataset.live]; if(!c) return; var v=c.renderVals(); if(typeof v.play==='function') v.play(); }
+function isPlay(e){ return [].concat(e.fragments||e.fragment||[]).some(function(f){ return f&&f.classList&&f.classList.contains('play-trigger'); }); }
+Reveal.on('fragmentshown', function(e){ var sec=Reveal.getCurrentSlide(); if(isPlay(e)) livePlay(sec); else liveStep(sec, true); });
+Reveal.on('fragmenthidden', function(e){ var sec=Reveal.getCurrentSlide(); if(isPlay(e)){ liveUnmount(sec); liveMount(sec); } else liveStep(sec, false); });
 window.addEventListener('beforeprint', function(){ liveUnmount(Reveal.getCurrentSlide()); });
 window.addEventListener('afterprint', function(){ liveMount(Reveal.getCurrentSlide()); });
 ['fragmentshown','fragmenthidden','slidechanged','ready'].forEach(function(e){ Reveal.on(e, syncSteps); Reveal.on(e, buildDots); });
