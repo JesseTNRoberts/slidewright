@@ -25,6 +25,11 @@ def inline_js(m):
     code = (root / m.group(1)).read_text(encoding="utf-8").replace("</script", "<\\/script")
     return f"<script>/* {m.group(1)} */\n{code}\n</script>"
 html = re.sub(r'<script src="(js/[\w.-]+\.js)"></script>', inline_js, html)
+# Mediabunny is an ES module, so it rides along as text and is imported from a blob URL when a video is made
+mb = (root / "vendor/mediabunny-1.65.2/mediabunny.min.mjs").read_text(encoding="utf-8")
+if "</script" in mb:
+    sys.exit("mediabunny contains </script; can't inline it as text")
+inline += f'<script type="text/plain" id="lib-mediabunny">/* vendor/mediabunny-1.65.2 (MPL-2.0) */\n{mb}\n</script>\n'
 i = html.rfind("</body>")
 if i < 0:
     sys.exit("no </body> in " + str(src))

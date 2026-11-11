@@ -2,7 +2,7 @@
 'use strict';
 /* ======================= boot ======================= */
 S.sample=true; loadHTML(sampleDeck(),'sample-deck.html',null); S.sample=false;
-if(!/^#present\b/.test(location.hash)) checkRecovery();
+if(!/^#present\b/.test(location.hash)){ checkRecovery(); setTimeout(()=>{ try{ checkLectureRecovery(); }catch(_){} },1500); }
 /* ======================= "Present with Slidewright" (a deck's own button sends itself here) ======================= */
 function parseSource(html){ const m=html.slice(0,200000).match(/<meta[^>]+name=["']slidewright-source["'][^>]*>/i); if(!m) return null; const c=(m[0].match(/content=["']([^"']*)["']/i)||[])[1]||'';
   const g=c.match(/^github:([\w.-]+)\/([\w.-]+)@([^:]+):(.+)$/); return g?{owner:g[1],repo:g[2],branch:g[3],path:g[4]}:null; }

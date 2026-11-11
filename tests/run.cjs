@@ -9,7 +9,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SAMPLE = path.join(__dirname, 'sample-deck.html');
-const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.mjs': 'application/javascript' };
 const server = http.createServer((q, r) => {
   let p = decodeURIComponent(new URL(q.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
   const f = path.join(ROOT, p);
@@ -610,10 +610,47 @@ test('embedded YouTube videos play from Slidewright over the sealed deck while t
   assert(!(await page.$('#present iframe.sw-ov')), 'video kept playing after leaving its slide');
 });
 
+test('lecture: record in presenter view, cut a stretch, remove a drawing, export a video', async (page, ctx) => {
+  if (ENGINE !== 'chromium') return; // a fake microphone is a Chromium switch
+  const pop = ctx.waitForEvent('page');
+  await page.click('#bPresent'); await page.evaluate(() => [...document.querySelectorAll('.menu button')].find(b => /Presenter view/.test(b.textContent)).click());
+  const aw = await deckFrame(await pop); await aw.waitForFunction(() => window.SW_ink && window.Reveal && Reveal.isReady(), null, { timeout: 20000 }); await wait(500);
+  await page.click('.btn.rec'); await page.waitForFunction(() => document.querySelector('.btn.rec.on'), null, { timeout: 10000 }); await wait(1200);
+  await page.keyboard.press('ArrowRight'); await wait(600); await page.keyboard.press('d');
+  const b = await (await page.$('.pv-cur')).boundingBox();
+  await page.mouse.move(b.x + b.width * 0.3, b.y + b.height * 0.4); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(b.x + b.width * (0.3 + i * 0.04), b.y + b.height * 0.4 + i * 3); await page.mouse.up(); await wait(500);
+  await page.keyboard.press('r'); for (let i = 0; i < 6; i++) { await page.mouse.move(b.x + b.width * (0.5 + i * 0.02), b.y + b.height * 0.6); await wait(70); }
+  await page.keyboard.press('Escape'); await page.keyboard.press('ArrowRight'); await wait(700); await page.keyboard.press('b'); await wait(500); await page.keyboard.press('b'); await wait(500);
+  await page.click('.btn.rec'); await page.waitForFunction(() => !document.querySelector('.btn.rec.on'), null, { timeout: 10000 });
+  const rec = await page.evaluate(async () => (await lecAll())[0]);
+  const kinds = rec.ev.map(e => e[0]).join('');
+  assert(rec.status === 'done' && rec.dur > 3 && rec.lv.length > 40, 'recording not kept: ' + JSON.stringify({ s: rec.status, d: rec.dur, lv: rec.lv.length }));
+  assert(/s.*i/.test(kinds) && kinds.includes('l') && rec.ev.some(e => e[0] === 's' && e[4] === 1), 'log is missing slides, ink, laser or blank: ' + kinds);
+  await page.evaluate(() => [...document.querySelectorAll('#presenter .btn')].find(x => x.textContent === 'End').click());
+  await page.evaluate(id => openLectureEditor(id), rec.id); await page.waitForSelector('#lecEd .le-pv');
+  await page.waitForFunction(() => !document.querySelector('#lecEd .le-bar .btn.primary').disabled, null, { timeout: 15000 });
+  // drag across the sound to select a stretch, then Delete cuts it
+  const tl = await (await page.$('.le-tl-c')).boundingBox();
+  await page.mouse.move(tl.x + tl.width * 0.05, tl.y + 80); await page.mouse.down(); await page.mouse.move(tl.x + tl.width * 0.12, tl.y + 80, { steps: 4 }); await page.mouse.up(); await page.keyboard.press('Delete');
+  // the drawing: click it on the timeline, Delete removes it, undo brings it back, Delete again
+  const clip = await page.evaluate(() => { const c = document.querySelector('.le-tl-c'), r = c.getBoundingClientRect(), g = c.getContext('2d'), d = devicePixelRatio || 1;
+    for (let x = 0; x < r.width; x += 2) { const px = g.getImageData(Math.round(x * d), Math.round(125 * d), 1, 1).data; if (px[0] > 180 && px[1] < 110) return { x: r.left + x + 3, y: r.top + 125 }; } return null; });
+  assert(clip, 'no drawing clip on the timeline');
+  await page.mouse.click(clip.x, clip.y); await page.keyboard.press('Delete'); await wait(100);
+  await page.keyboard.press('Control+z'); await wait(100); await page.mouse.click(clip.x, clip.y); await page.keyboard.press('Delete'); await wait(600);
+  const edit = await page.evaluate(async id => (await lecGet('recs', id)).edit, rec.id);
+  assert(edit && edit.cuts.length === 1 && Object.values(edit.ink).some(o => o.del), 'edits not kept: ' + JSON.stringify(edit));
+  const out = await page.evaluate(async id => { const r = await lecGet('recs', id); const M = lecModel(r); const p = { cancelled: false, set() {} };
+    const v = await renderLectureVideo(r, M, r.edit, p); return { size: v.blob.size, mime: v.mime, len: lecTime(M, r.edit).len, dur: M.dur }; }, rec.id);
+  assert(out.size > 20000 && /video\/(mp4|webm)/.test(out.mime) && out.len < out.dur - 0.2, 'video not made: ' + JSON.stringify(out));
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); assert(!(await page.$('#lecEd')), 'editor did not close');
+});
+
 /* ---------------------------------------------------------------- runner */
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r)); BASE = 'http://127.0.0.1:' + server.address().port;
-  browser = await playwright[ENGINE].launch(); let failed = 0; console.log('Browser engine: ' + ENGINE);
+  browser = await playwright[ENGINE].launch(ENGINE === 'chromium' ? { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } : {}); let failed = 0; console.log('Browser engine: ' + ENGINE);
   for (const t of tests) {
     const ctx = await newCtx(); const cdn = watchCDN(ctx); const t0 = Date.now(); let page;
     try { page = await openEditor(ctx); await t.fn(page, ctx); if (page.errors.length) throw new Error('page error: ' + page.errors[0]); if (cdn.length) throw new Error('loaded from a CDN: ' + cdn[0]); console.log(`  ✓ ${t.name} (${Date.now() - t0} ms)`); }
