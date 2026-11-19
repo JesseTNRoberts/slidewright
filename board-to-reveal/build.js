@@ -515,12 +515,12 @@ function finishAnims(root){ cssAnims(root).forEach(function(a){ try{ a.finish();
 // restart by resetting each element's own animation style, so animations that were finished (and so no longer
 // listed by getAnimations, e.g. ones only visible during their own time slot) start again too
 function restartAnims(root){ var els=[].slice.call(root.querySelectorAll('[style*="animation"]')); if(root.matches && root.matches('[style*="animation"]')) els.push(root);
-  els.forEach(function(e){ if(e.dataset.anim===undefined) e.dataset.anim=e.style.animation; e.style.animation='none'; }); void root.offsetWidth;
+  els.forEach(function(e){ if(e.dataset.anim===undefined) e.dataset.anim=e.style.animation; e.style.animation='none'; }); root.getBoundingClientRect(); // reflow; SVG elements have no offsetWidth
   els.forEach(function(e){ e.style.animation=e.dataset.anim; }); }
 Reveal.on('fragmentshown', function(e){ (e.fragments||[e.fragment]).forEach(restartAnims); });
 // animations outside any click step play each time the slide is shown; ones inside a step show finished
 function restartLoose(sec){ var els=[].filter.call(sec.querySelectorAll('[style*="animation"]'), function(e){ return !e.closest('.fragment'); }); if(!els.length) return;
-  els.forEach(function(e){ if(e.dataset.anim===undefined) e.dataset.anim=e.style.animation; e.style.animation='none'; }); void sec.offsetWidth;
+  els.forEach(function(e){ if(e.dataset.anim===undefined) e.dataset.anim=e.style.animation; e.style.animation='none'; }); sec.getBoundingClientRect();
   els.forEach(function(e){ e.style.animation=e.dataset.anim; }); }
 Reveal.on('slidechanged', function(e){ finishAnims(e.currentSlide); restartLoose(e.currentSlide); });
 /* time-animated slides: the slide's own component runs while the slide is shown; elsewhere (other slides,

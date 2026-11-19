@@ -55,6 +55,7 @@ The check stays offline: each declared embed address (and only those) is served 
 
 ## Changelog
 
+- 1.13.1 (Nov 19, 2026): from "Computational processes implemented with neural networks". A CSS animation inside a drawing that is its own click step (`<svg data-build-step>`; the NeRF labels slide) now restarts on its click; before, it played on slide load and showed finished on the click (SVG elements have no `offsetWidth`, so the restart never forced a reflow). Test board: SvgKeyframes.dc.html.
 - 1.13.0 (Nov 19, 2026): from "Generative AI: learn the distribution, then sample" (14 slides, 5 live activity pages from jessetnroberts.com/gen-vs-descrim). Embedded live pages: `data-embed` on a slide's root becomes `data-background-iframe` + `data-background-interactive`, clickable while presenting, keyboard handed back to the deck after a click, placeholder in print and the PDF. `--check` stubs the declared pages and reports `embeds`; axe no longer waits on frames. In Slidewright's own presenter the page runs inside the deck's sandbox, so it has no storage or cookies (activities that need them: present the exported file directly). Test board: Embed.dc.html.
 
 - 1.12.0 (Nov 10, 2026): a Play-button animation plays on Next instead of on an on-slide button, in its place in the click order (on the RNN slide, after the transformer panel appears); going back rewinds it; Play/Reset buttons are no longer exported.

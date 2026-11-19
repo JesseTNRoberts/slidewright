@@ -138,6 +138,10 @@ test('edit, save, and the saved deck still presents with every converter feature
   await deck.evaluate(i => Reveal.slide(i, 0, -1), slideIndex('Keyframes.dc.html'));
   await deck.evaluate(() => Reveal.next()); await wait(100);
   assert(await deck.evaluate(() => Reveal.getCurrentSlide().getAnimations({ subtree: true }).some(x => x.animationName)), 'CSS animation did not start on its click');
+  // an animation inside a drawing (<svg data-build-step>) restarts on its click instead of showing finished
+  await deck.evaluate(i => Reveal.slide(i, 0, -1), slideIndex('SvgKeyframes.dc.html')); await wait(400);
+  await deck.evaluate(() => Reveal.next()); await wait(100);
+  assert(await deck.evaluate(() => Reveal.getCurrentSlide().getAnimations({ subtree: true }).some(x => x.animationName && x.playState === 'running')), 'animation in a drawing did not restart on its click');
 
   assert(await deck.evaluate(() => !!document.querySelector('.pdf-btn')), 'PDF button missing');
   assert(!deck.errors.length, 'saved deck error: ' + deck.errors[0]);
