@@ -105,6 +105,14 @@
       "w": 1280,
       "h": 720,
       "title": "A live web page (embed)"
+    },
+    "SvgKeyframes.dc.html": {
+      "x": 14960,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "Animated drawing on a click (click Next)",
+      "is_interactive": true
     }
   },
   "order": [
@@ -112,6 +120,7 @@
     "Steps.dc.html",
     "Builds.dc.html",
     "Keyframes.dc.html",
+    "SvgKeyframes.dc.html",
     "LiveLoop.dc.html",
     "LiveSteps.dc.html",
     "LiveControl.dc.html",
