@@ -98,6 +98,13 @@
       "h": 720,
       "title": "Animation on a Play button",
       "is_interactive": true
+    },
+    "Embed.dc.html": {
+      "x": 13600,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "A live web page (embed)"
     }
   },
   "order": [
@@ -110,6 +117,7 @@
     "LiveControl.dc.html",
     "LivePlay.dc.html",
     "PreviewBuilds.dc.html",
+    "Embed.dc.html",
     "Question.dc.html",
     "Hidden.dc.html"
   ],

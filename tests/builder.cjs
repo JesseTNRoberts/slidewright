@@ -48,10 +48,14 @@ async function openEditor(ctx) {
   return page;
 }
 // Present a deck file the way a student would: offline, nothing fetched from the network.
+// The test board's embedded live page (Embed.dc.html) is served by a stub that counts clicks; it is not counted as a fetch.
+const EMBED_URL = 'https://embed.example/activity/?view=results&run=test';
+const EMBED_STUB = '<!doctype html><html lang="en"><title>Stub</title><body style="margin:0;height:100vh;background:#EEF2FB" onclick="document.body.dataset.clicks=(+document.body.dataset.clicks||0)+1">Live page stub</body></html>';
 async function present(ctx, file) {
   const page = await ctx.newPage(); page.errors = []; page.requests = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  page.on('request', q => { if (!/^(http:\/\/127\.0\.0\.1|data:|blob:)/.test(q.url())) page.requests.push(q.url()); });
+  await page.route('https://embed.example/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: EMBED_STUB }));
+  page.on('request', q => { if (!/^(http:\/\/127\.0\.0\.1|data:|blob:|https:\/\/embed\.example\/)/.test(q.url())) page.requests.push(q.url()); });
   await page.goto(BASE + '/__tmp/' + path.basename(file));
   await page.waitForFunction(() => window.Reveal && Reveal.isReady(), null, { timeout: 20000 });
   await wait(300);
@@ -206,6 +210,39 @@ test('Present with Slidewright from a preview that cuts the tie between windows 
   assert(st.hash === '', 'the deck-sized address was left in the address bar');
   assert(st.gh && st.gh.repo === 'lectures', 'GitHub source not read from the deck sent in the link');
   assert(!sw.errors.length, 'Slidewright error: ' + sw.errors[0]);
+});
+
+test('an embedded live page survives a Slidewright save: the page fills the slide, takes clicks, keeps the arrow keys, and prints the placeholder', async (page, ctx) => {
+  const i = await page.evaluate(() => __deckEditor.S.slides.findIndex(s => s.getAttribute('data-board-slide') === 'Embed.dc.html'));
+  assert(i >= 0, 'embed slide missing in Slidewright');
+  // in the editor the placeholder is what you see and edit
+  await page.evaluate(i => __deckEditor.go(i), i);
+  assert(await page.evaluate(() => { const f = document.querySelector('#deck section .embed-fallback'); return !!f && getComputedStyle(f).visibility === 'visible'; }), 'placeholder not shown in the editor');
+  const html = await page.evaluate(() => __deckEditor.serialize());
+  const SAVED3 = path.join(TMP, 'embed.html'); fs.writeFileSync(SAVED3, html);
+  const sec = /<section\b[^>]*data-board-slide="Embed\.dc\.html"[^>]*>/.exec(html);
+  assert(sec, 'embed section lost');
+  assert(sec[0].includes('data-background-iframe="https://embed.example/activity/?view=results&amp;run=test"') && /\sdata-background-interactive[\s>=]/.test(sec[0]), 'saved deck lost the embed attributes: ' + sec[0]);
+  assert(/class="embed-fallback"/.test(html), 'saved deck lost the placeholder');
+  const deck = await present(ctx, SAVED3);
+  const k = slideIndex('Embed.dc.html');
+  await deck.evaluate(k => Reveal.slide(k), k); await wait(900);
+  const st = await deck.evaluate(() => { const s = Reveal.getCurrentSlide(), f = s.slideBackgroundElement.querySelector('iframe'), r = document.querySelector('.reveal .slides').getBoundingClientRect();
+    return { src: f && f.getAttribute('src'), top: document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === f, low: document.elementFromPoint(r.left + 40, r.bottom - 10) === f,
+      hidden: getComputedStyle(s.querySelector('.embed-fallback')).visibility === 'hidden', title: f && f.title }; });
+  assert(st.src === EMBED_URL, 'live page not loaded: ' + st.src);
+  assert(st.top && st.low, 'something on the slide covers the live page');
+  assert(st.hidden, 'placeholder covers the live page');
+  assert(/A live web page/.test(st.title || ''), 'live page has no title: ' + st.title);
+  const fr = deck.frames().find(f => f.url() === EMBED_URL);
+  const vp = deck.viewportSize(); await deck.mouse.click(vp.width / 2, vp.height / 2); await wait(200);
+  assert(await fr.evaluate(() => +document.body.dataset.clicks || 0) === 1, 'click did not reach the live page');
+  await deck.keyboard.press('ArrowRight'); await wait(300);
+  assert(await deck.evaluate(() => Reveal.getIndices().h) === k + 1, 'arrow key after a click in the live page did not move the deck');
+  await deck.emulateMedia({ media: 'print' });
+  assert(await deck.evaluate(k => getComputedStyle(document.querySelectorAll('.reveal .slides > section')[k].querySelector('.embed-fallback')).visibility === 'visible', k), 'placeholder not printed');
+  assert(!deck.errors.length, 'deck error: ' + deck.errors[0]);
+  assert(!deck.requests.length, 'deck fetched ' + deck.requests[0]);
 });
 
 test('build-preview slides export as single items that appear on click, with their effects, editable in Slidewright', async page => {

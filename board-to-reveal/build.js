@@ -18,6 +18,8 @@
 //   * board step builds: [data-build-step="k"] -> fragment k-1; [data-build-dot] circles follow data-track
 //   * buttons (Next/Reset) removed; marker/element ids prefixed per slide so they stay unique
 //   * IBM Plex Sans/Mono and reveal.js inlined; KaTeX inlined only if a slide uses \( \) or \[ \]
+//   * a live web page as the slide: data-embed="<url>" on the slide root -> <section data-background-iframe
+//     data-background-interactive>; the board's placeholder shows only in print and the PDF
 //   * student extras (extras.js): "Download slides as PDF" button on the title slide, a copyright
 //     line on every slide, slide-sized Ctrl/Cmd+P printing
 const fs = require('fs');
@@ -160,7 +162,19 @@ function readSlide(file) {
     const ns = pf ? [...pf[1].matchAll(/step\s*>=\s*(\d+)/g)].map(m => +m[1]) : [];
     playAt = Math.min(steps, ns.length ? Math.max(...ns) : 0);
   }
-  return { file, body, script: sm ? sm[2] : '', steps, anim, live, playAt };
+  // a live web page as the slide: the board's slide root carries data-embed="<url>" (Design boards can't hold an
+  // <iframe>, so the board shows a placeholder; the export makes the page the slide's background and keeps the
+  // placeholder for print and the PDF)
+  let embed = null;
+  const em = /^<div\b([^>]*?)\sdata-embed="([^"]*)"/.exec(body);
+  if ((body.match(/\sdata-embed="/g) || []).length > (em ? 1 : 0)) unsupported(file, 'data-embed on an element other than the slide\'s root <div> (put it on the root)');
+  if (em) {
+    const url = decode(em[2]).trim();
+    if (!/^https?:\/\/[^\s"'<>]+$/i.test(url)) unsupported(file, 'data-embed="' + em[2] + '" (the embedded page needs an http(s) address)');
+    if (steps || live || anim.keyframes.length || /data-build-(step|dot)/.test(body)) unsupported(file, 'an embedded page (data-embed) on a slide with click steps, builds or animations; give the page a slide of its own');
+    embed = { url, typing: /\sdata-embed-typing\b/.test(/^<div\b[^>]*>/.exec(body)[0]) };
+  }
+  return { file, body, script: sm ? sm[2] : '', steps, anim, live, playAt, embed };
 }
 function unsupported(file, what) {
   console.error('\nNot supported yet in ' + file + ': ' + what +
@@ -333,6 +347,9 @@ order.forEach((file, n) => {
   if (!slide.steps || buildOnly) {
     inner = prefixIds(buildOnly ? noStep(renders[slide.steps]) : renderSlide(slide, null), 's' + N + '-');
     title = titleOf(inner);
+    // an embed slide: the root <div> becomes the placeholder shown in print and the PDF (hidden on screen)
+    if (slide.embed) inner = inner.replace(/^(<div\b[^>]*?)\sdata-embed="[^"]*"/, '$1').replace(/^(<div\b[^>]*?)\sdata-embed-typing(="[^"]*")?/, '$1')
+      .replace(/^<div\b/, '<div class="embed-fallback"');
   } else {
     renders = [];
     for (let k = 0; k <= slide.steps; k++) renders.push(renderSlide(slide, k));
@@ -388,7 +405,8 @@ order.forEach((file, n) => {
   const isFirst = file === firstVisible;
   const extra = (isFirst && OPT.pdf ? '\n' + extras.BUTTON : '') + (OPT.copyright ? '\n' + extras.copyright(isFirst ? 1 : N + 1, OPT.holder, OPT.year) : '');
   const hid = isHidden(file);
-  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '" data-board-slide="' + esc(file) + '"' + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') + (slide.playAt !== null ? ' data-play-at="' + slide.playAt + '"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
+  const emb = slide.embed ? ' data-background-iframe="' + esc(slide.embed.url) + '" data-background-interactive data-preload' + (slide.embed.typing ? ' data-embed-typing' : '') : '';
+  sections.push({ N, file, title, hidden: hid, live: slide.live, anim: slide.anim.keyframes.length, embed: slide.embed && slide.embed.url, html: '<!-- ===== Slide ' + N + ': ' + title + (hid ? ' (HIDDEN: on the board\'s Hidden page)' : '') + ' ===== -->\n<section data-title="' + esc(title) + '" data-board-slide="' + esc(file) + '"' + emb + (slide.live ? ' data-live="' + N + '"' + (slide.steps ? ' data-live-steps="1"' : '') + (slide.playAt !== null ? ' data-play-at="' + slide.playAt + '"' : '') : '') + (hid ? ' data-visibility="hidden"' : '') + '>\n' + inner + extra + '\n</section>' });
 });
 
 // ---------- assets ----------
@@ -423,6 +441,29 @@ if (usesMath) {
     noClose(fs.readFileSync(path.join(kd, 'contrib/auto-render.min.js'), 'utf8'));
 }
 
+/* embedded live pages (data-background-iframe): on screen the page is the slide and takes the clicks; the board's
+   placeholder (and the copyright line) show only in print, the PDF and ?print-pdf. The deck's script adds
+   html.embeds-live, so nothing is hidden where no script runs (Slidewright's editor, thumbnails). */
+const EMBED_CSS = `
+@media screen{
+html.embeds-live:not(.print-pdf) .reveal .slides>section[data-background-iframe]>.embed-fallback,
+html.embeds-live:not(.print-pdf) .reveal .slides>section[data-background-iframe]>.slide-copy{visibility:hidden}
+html.embed-current .sw-present{display:none!important}
+}
+.reveal .slides section>div.pdf-get{pointer-events:auto}
+.reveal .slide-background iframe{border:0;display:block;background:#FBFBFA}
+`;
+/* the live page gets the slide's title for screen readers; after a click inside it, the keyboard comes back to the
+   deck (arrow keys, Space) unless the slide asks to keep typing in the page (data-embed-typing) */
+const EMBED_JS = `
+document.documentElement.classList.add('embeds-live');
+function embedSync(){ var cur=Reveal.getCurrentSlide(); document.documentElement.classList.toggle('embed-current', !!(cur&&cur.hasAttribute('data-background-iframe')));
+  document.querySelectorAll('.reveal .slides > section[data-background-iframe]').forEach(function(s){ var bg=s.slideBackgroundElement; if(!bg) return;
+    bg.querySelectorAll('iframe').forEach(function(f){ if(!f.title) f.title='Live page: '+(s.dataset.title||s.getAttribute('data-background-iframe')); }); }); }
+['ready','slidechanged'].forEach(function(e){ Reveal.on(e, embedSync); });
+window.addEventListener('blur', function(){ setTimeout(function(){ var a=document.activeElement, cur=Reveal.getCurrentSlide();
+  if(!a||a.tagName!=='IFRAME'||!a.closest('.backgrounds')||(cur&&cur.hasAttribute('data-embed-typing'))) return; a.blur(); window.focus(); }, 0); });
+`;
 const css = `
 html,body{background:#FBFBFA}
 .reveal{font-family:'IBM Plex Sans',sans-serif;color:#16181D}
@@ -436,6 +477,7 @@ html,body{background:#FBFBFA}
 /* emphasis effects win over an item's own colour */
 .reveal .slides section .fragment.highlight-red.visible{color:#ff2c2d!important}.reveal .slides section .fragment.highlight-green.visible{color:#17ff2e!important}.reveal .slides section .fragment.highlight-blue.visible{color:#1b91ff!important}
 ${animCss}
+${sections.some(s => s.embed) ? EMBED_CSS : ''}
 ${extras.CSS}
 ${OPT.present ? extras.PRESENT_CSS : ''}
 `;
@@ -520,6 +562,7 @@ Reveal.on('fragmenthidden', function(e){ var sec=Reveal.getCurrentSlide(); if(is
 window.addEventListener('beforeprint', function(){ liveUnmount(Reveal.getCurrentSlide()); });
 window.addEventListener('afterprint', function(){ liveMount(Reveal.getCurrentSlide()); });
 ['fragmentshown','fragmenthidden','slidechanged','ready'].forEach(function(e){ Reveal.on(e, syncSteps); Reveal.on(e, buildDots); });
+${sections.some(s => s.embed) ? EMBED_JS : ''}
 ${usesMath ? `renderMathInElement(document.body,{delimiters:[{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});
 document.querySelectorAll('.katex svg').forEach(function(el){ el.setAttribute('aria-hidden','true'); el.setAttribute('focusable','false'); el.setAttribute('role','presentation'); });` : ''}
 Reveal.initialize({width:1280,height:720,margin:0.03,center:false,hash:true,controls:true,progress:true,slideNumber:false,transition:'fade'}).then(function(){ syncSteps(); buildDots(); finishAnims(Reveal.getCurrentSlide()); liveMount(Reveal.getCurrentSlide()); });
@@ -562,4 +605,4 @@ ${OPT.present ? extras.presentRuntime(OPT.slidewright) : ''}
 fs.writeFileSync(OUT, html);
 console.log('built', OUT, '|', sections.filter(s => !s.hidden).length, 'slides' + (sections.some(s => s.hidden) ? ' (+' + sections.filter(s => s.hidden).length + ' hidden)' : '') + ' |', (html.length / 1e6).toFixed(1), 'MB |', usesMath ? 'KaTeX inlined' : 'no math',
   '|', OPT.pdf ? 'PDF button' : 'no PDF button', '|', OPT.present ? 'Present button' : 'no Present button', '|', OPT.copyright ? '© ' + OPT.year + ' ' + OPT.holder : 'no copyright');
-sections.forEach(s => console.log(String(s.N).padStart(3), s.file.padEnd(28), (s.hidden ? '[hidden] ' : '') + s.title + (s.anim ? '  [' + s.anim + ' keyframes]' : '') + (s.live ? '  [time-animated]' : '')));
+sections.forEach(s => console.log(String(s.N).padStart(3), s.file.padEnd(28), (s.hidden ? '[hidden] ' : '') + s.title + (s.anim ? '  [' + s.anim + ' keyframes]' : '') + (s.live ? '  [time-animated]' : '') + (s.embed ? '  [embed ' + s.embed + ']' : '')));

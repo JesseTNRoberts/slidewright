@@ -20,8 +20,16 @@ const CLIP = `window.__clip = function(el, r, stop){ var l=r.left,t=r.top,R=r.ri
   const p = await b.newPage({ viewport: { width: 1280, height: 720 }, acceptDownloads: true });
   const errors = [], requests = [];
   p.on('pageerror', e => errors.push(String(e)));
-  p.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-  await p.route('**/*', r => { const u = r.request().url(); if (u.startsWith('file:') || u.startsWith('data:') || u.startsWith('blob:')) return r.continue(); requests.push(u); return r.abort(); });
+  p.on('console', m => { if (m.type() === 'error' && !(m.location().url || '').startsWith('http')) errors.push('console: ' + m.text()); });
+  // embedded live pages (<section data-background-iframe>) are declared by the deck: the check stays offline and
+  // shows each one a small stub page instead (it counts clicks, so the check can tell the page gets them)
+  const decodeAttr = v => v.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const EMBEDS = new Set([...fs.readFileSync(FILE, 'utf8').matchAll(/<section\b[^>]*\sdata-background-iframe="([^"]*)"/g)].map(m => decodeAttr(m[1])));
+  const stub = u => '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Live page (stub)</title></head><body style="margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#EEF2FB;font:20px sans-serif;color:#16181D" onclick="document.body.dataset.clicks=(+document.body.dataset.clicks||0)+1">' +
+    '<div>Live page (offline check stub)</div><div style="font-family:monospace;font-size:16px">' + u.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</div></body></html>';
+  await p.route('**/*', r => { const u = r.request().url(); if (u.startsWith('file:') || u.startsWith('data:') || u.startsWith('blob:')) return r.continue();
+    if (EMBEDS.has(u) && r.request().resourceType() === 'document') return r.fulfill({ status: 200, contentType: 'text/html', body: stub(u) });
+    requests.push(u); return r.abort(); });
   await p.addInitScript(CLIP);
   await p.goto('file://' + FILE);
   await p.waitForFunction(() => window.Reveal && Reveal.isReady());
@@ -115,6 +123,43 @@ const CLIP = `window.__clip = function(el, r, stop){ var l=r.left,t=r.top,R=r.ri
     await p.evaluate(() => Reveal.next());
   }
   console.log('screenshots', shot);
+  // embedded live pages: the page fills the slide and nothing on the slide sits on top of it; a click reaches the page
+  // and the arrow keys still move the deck afterwards; the placeholder is hidden on screen and shown in print
+  const embeds = [];
+  const embedIdx = await p.evaluate(() => [...document.querySelectorAll('.reveal .slides > section')].map((s, i) => s.hasAttribute('data-background-iframe') ? i : -1).filter(i => i >= 0));
+  for (const i of embedIdx) {
+    await p.evaluate(i => Reveal.slide(i, 0, -1), i);
+    await p.waitForTimeout(900);
+    const st = await p.evaluate(() => {
+      const sec = Reveal.getCurrentSlide(), url = sec.getAttribute('data-background-iframe'), f = sec.slideBackgroundElement && sec.slideBackgroundElement.querySelector('iframe');
+      const sr = document.querySelector('.reveal .slides').getBoundingClientRect(), k = sr.width / 1280;
+      // a grid of points over the slide (the reveal arrows in the bottom-right corner are allowed to sit on top)
+      const blocked = [];
+      for (let x = 20; x < 1280; x += 155) for (let y = 15; y < 720; y += 100) {
+        const px = sr.left + x * k, py = sr.top + y * k, ctl = document.querySelector('.reveal .controls').getBoundingClientRect();
+        if (px >= ctl.left && px <= ctl.right && py >= ctl.top && py <= ctl.bottom) continue;
+        const e = document.elementFromPoint(px, py); if (e !== f) blocked.push(x + ',' + y + ':' + (e ? e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ')[0] : '') : 'none'));
+      }
+      const fb = sec.querySelector(':scope > .embed-fallback');
+      return { slide: Reveal.getIndices().h + 1, url, loaded: !!f && f.getAttribute('src') === url, title: f ? f.title : '', placeholder_hidden: !!fb && getComputedStyle(fb).visibility === 'hidden', blocked: blocked.slice(0, 5) };
+    });
+    // a real click in the middle of the page, then the right arrow
+    const fr = p.frames().find(x => x.url() === st.url);
+    const c0 = fr ? await fr.evaluate(() => +document.body.dataset.clicks || 0).catch(() => -1) : -1;
+    await p.mouse.click(640, 400); await p.waitForTimeout(200);
+    st.click = fr ? (await fr.evaluate(() => +document.body.dataset.clicks || 0).catch(() => -1)) === c0 + 1 : false;
+    await p.keyboard.press('ArrowRight'); await p.waitForTimeout(300);
+    st.keys_after_click = await p.evaluate(i => Reveal.getIndices().h === i + 1 || (Reveal.isLastSlide() && Reveal.getIndices().h === i), i);
+    // print: the placeholder is what shows
+    await p.emulateMedia({ media: 'print' });
+    const el = await p.$('.reveal .slides > section:nth-child(' + (i + 1) + ')');
+    st.print_placeholder = await p.evaluate(i => { const fb = document.querySelectorAll('.reveal .slides > section')[i].querySelector(':scope > .embed-fallback'); return !!fb && getComputedStyle(fb).visibility === 'visible'; }, i);
+    if (el) await el.screenshot({ path: path.join(SHOTS, String(i + 1).padStart(2, '0') + '_print.png') });
+    await p.emulateMedia({ media: 'screen' });
+    st.ok = st.loaded && !!st.title && st.placeholder_hidden && !st.blocked.length && st.click && st.keys_after_click && st.print_placeholder;
+    embeds.push(st);
+  }
+  console.log('embeds', JSON.stringify(embeds));
   // CSS keyframe animations: each restarts when its click step is shown, a mid-way screenshot
   // is taken 3 s in, and every one of them reaches its end state
   const animSlides = await p.evaluate(() => [...document.querySelectorAll('.reveal .slides > section')].map((s, i) => s.querySelector('[style*="animation"]') ? i : -1).filter(i => i >= 0));
@@ -224,7 +269,7 @@ const CLIP = `window.__clip = function(el, r, stop){ var l=r.left,t=r.top,R=r.ri
   await p.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
   const axe = await p.evaluate(async () => {
     document.querySelectorAll('.reveal .slides > section').forEach(s => { s.style.display = 'block'; s.classList.add('present'); s.removeAttribute('hidden'); s.removeAttribute('aria-hidden'); });
-    const r = await axe.run(document, { runOnly: { type: 'rule', values: ['image-alt', 'svg-img-alt', 'role-img-alt', 'aria-hidden-focus'] } });
+    const r = await axe.run(document, { iframes: false, runOnly: { type: 'rule', values: ['image-alt', 'svg-img-alt', 'role-img-alt', 'aria-hidden-focus'] } });
     return r.violations.map(v => ({ id: v.id, n: v.nodes.length, ex: v.nodes.slice(0, 3).map(n => n.html.slice(0, 160)) }));
   });
   // plot SVGs with text/axes but no label
